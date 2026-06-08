@@ -1,81 +1,92 @@
 <template>
   <q-page class="page">
     <main class="content">
-      <section class="intro card">
+      <section class="topbar card">
         <div>
-          <p class="eyebrow">Faro visual social demo</p>
-          <h1>Local-first visual notes, shaped for Nostr.</h1>
+          <p class="eyebrow">Faro development build</p>
+          <h1>Nostr visual posting, locally testable.</h1>
           <p class="muted">
-            This demo uses NIP-01 kind 0 profiles, NIP-02/kind 3 follows, and NIP-01 kind 1
-            visual notes when relay data is available. Publishing stays local for now; a real app
-            would upload media to Blossom and publish URLs/hashes instead of browser data.
+            Reads Nostr profile/follows/feed from relays. Publishing is still local while the
+            Blossom upload + signed kind 1 publish path is built.
           </p>
         </div>
-        <div class="intro-actions">
+        <div class="top-actions">
           <q-btn flat round icon="refresh" :loading="refreshing" @click="refreshFromNostr">
-            <q-tooltip>Fetch profile, following and visual feed from relays</q-tooltip>
+            <q-tooltip>Refresh Nostr profile, follows and images</q-tooltip>
           </q-btn>
           <q-btn v-if="identity" flat round icon="logout" @click="logout">
-            <q-tooltip>Logout; local posts stay cached</q-tooltip>
+            <q-tooltip>Logout</q-tooltip>
           </q-btn>
         </div>
       </section>
 
       <q-banner v-if="message" rounded class="message" dense>{{ message }}</q-banner>
 
-      <section v-if="identity" class="profile card">
-        <q-avatar size="72px" class="profile-avatar" color="deep-orange-4" text-color="white">
-          <img v-if="profile.picture" :src="profile.picture" alt="Profile avatar" />
-          <span v-else>{{ displayName.slice(0, 1) }}</span>
+      <section class="profile card" data-testid="profile-card">
+        <q-avatar size="72px" class="profile-avatar" :color="identity ? 'deep-orange-4' : 'grey-5'" text-color="white">
+          <img v-if="activeProfile.picture" :src="activeProfile.picture" alt="Profile avatar" />
+          <span v-else>{{ avatarInitial }}</span>
         </q-avatar>
+
         <div class="profile-body">
           <div class="profile-row">
             <div>
-              <h2>{{ displayName }}</h2>
-              <p class="key">{{ shortKey(identity.pubkey) }}</p>
+              <h2>{{ identity ? displayName : 'Not logged in' }}</h2>
+              <p class="key">{{ identity ? shortKey(identity.pubkey) : 'Connect a signer or create a local development identity.' }}</p>
             </div>
-            <q-badge class="source-badge" :label="identity.source || profile.source || 'local'" />
+            <q-badge class="source-badge" :label="authLabel" />
           </div>
-          <p class="about">{{ profile.about || 'No relay profile yet. Demo identity is ready for local posting.' }}</p>
+
+          <p class="about">
+            {{ identity ? activeProfile.about || 'Profile loaded locally. Use refresh to fetch kind 0 metadata from relays.' : 'You need an identity before posting.' }}
+          </p>
+
           <div class="stats">
             <span><strong>{{ following.length }}</strong> following</span>
             <span><strong>{{ relayPosts.length }}</strong> relay visuals</span>
-            <span><strong>{{ posts.length }}</strong> local</span>
+            <span><strong>{{ posts.length }}</strong> local posts</span>
+          </div>
+
+          <div v-if="!identity" class="login-actions">
+            <q-btn
+              unelevated
+              color="deep-purple-6"
+              :disable="!hasNip07"
+              :label="hasNip07 ? 'Login with NIP-07' : 'NIP-07 signer not detected'"
+              data-testid="nip07-login"
+              @click="loginWithNip07"
+            />
+            <q-btn outline color="deep-purple-6" label="Create local dev identity" data-testid="generate-identity" @click="generateIdentity" />
           </div>
         </div>
       </section>
 
-      <section v-else class="login card">
-        <h2>Start posting</h2>
-        <p class="muted">Use a NIP-07 signer if available, or generate a disposable demo pubkey.</p>
-        <div class="login-actions">
-          <q-btn v-if="hasNip07" unelevated color="deep-purple-6" label="Login with NIP-07" @click="loginWithNip07" />
-          <q-btn outline color="deep-purple-6" label="Generate demo identity" @click="generateIdentity" />
-        </div>
-      </section>
-
-      <section class="composer card">
+      <section class="composer card" data-testid="composer-card">
         <div class="section-title">
           <div>
             <span>Create visual note</span>
-            <p>Mock publish · bounded local image cache</p>
+            <p>Images are cropped/resized before local storage.</p>
           </div>
-          <q-btn flat dense color="negative" icon="delete_sweep" label="Clear demo cache" @click="clearDemoCache" />
+          <q-btn flat dense color="negative" icon="delete_sweep" label="Clear local posts" @click="clearPostCache" />
         </div>
 
+        <q-banner v-if="!identity" rounded dense class="inline-warning">
+          Login or create a local development identity to enable posting.
+        </q-banner>
+
         <div class="composer-grid">
-          <label class="image-picker" :style="previewStyle" :class="{ 'has-preview': imagePreview }">
-            <input ref="imageInput" type="file" accept="image/*" @change="selectImage" />
+          <label class="image-picker" :style="previewStyle" :class="{ 'has-preview': imagePreview }" data-testid="image-picker">
+            <input ref="imageInput" type="file" accept="image/*" data-testid="image-input" @change="selectImage" />
             <img v-if="imagePreview" :src="imagePreview" alt="Selected cropped preview" />
             <div v-else class="picker-empty">
               <q-icon name="add_photo_alternate" size="32px" />
               <strong>Add image</strong>
-              <span>We crop/resize before storing locally.</span>
+              <span>Choose a photo; crop ratio below.</span>
             </div>
           </label>
 
           <div class="composer-fields">
-            <div class="ratio-row">
+            <div class="ratio-row" aria-label="Image aspect ratio">
               <q-btn
                 v-for="ratio in ratios"
                 :key="ratio"
@@ -84,11 +95,12 @@
                 unelevated
                 :class="{ active: selectedRatio === ratio }"
                 :label="ratio"
+                :data-testid="`ratio-${ratio}`"
                 @click="setRatio(ratio)"
               />
             </div>
-            <q-input v-model="caption" type="textarea" autogrow outlined placeholder="Caption for your visual note…" />
-            <q-btn unelevated color="deep-purple-6" class="post-btn" :disable="!canPost" label="Post locally" @click="publishPost" />
+            <q-input v-model="caption" type="textarea" autogrow outlined placeholder="Caption for your visual note…" data-testid="caption-input" />
+            <q-btn unelevated color="deep-purple-6" class="post-btn" :disable="!canPost" label="Post locally" data-testid="post-button" @click="publishPost" />
           </div>
         </div>
       </section>
@@ -99,8 +111,8 @@
           <q-btn flat dense icon="refresh" label="Fetch Nostr" :loading="refreshing" @click="refreshFromNostr" />
         </div>
 
-        <div class="feed-grid">
-          <article v-for="post in combinedFeed" :key="post.id" class="post card">
+        <div v-if="combinedFeed.length" class="feed-grid" data-testid="feed-grid">
+          <article v-for="post in combinedFeed" :key="post.id" class="post card" data-testid="feed-post">
             <div class="post-author">
               <q-avatar size="34px" color="deep-orange-4" text-color="white">{{ post.author.name.slice(0, 1) }}</q-avatar>
               <div>
@@ -113,9 +125,9 @@
           </article>
         </div>
 
-        <div v-if="combinedFeed.length === 0" class="empty card">
+        <div v-else class="empty card" data-testid="empty-feed">
           <q-icon name="auto_awesome" size="32px" />
-          <p>Your first local visual note or fetched relay image will appear here.</p>
+          <p>No images yet. Post locally or fetch Nostr visuals from followed pubkeys.</p>
         </div>
       </section>
     </main>
@@ -125,6 +137,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import {
+  ASPECT_RATIOS,
   clearLocalPosts,
   loadLocalPosts,
   processImageFile,
@@ -132,8 +145,11 @@ import {
 } from 'src/services/localMedia'
 import { fetchFollowing, fetchProfile, fetchVisualFeed } from 'src/services/nostrRelay'
 
+const identityKey = 'faro-identity'
+const legacyIdentityKey = 'nostr-visual-demo-identity'
+
 const identity = ref(null)
-const profile = ref({})
+const relayProfile = ref({})
 const following = ref([])
 const posts = ref([])
 const relayPosts = ref([])
@@ -145,19 +161,27 @@ const hasNip07 = ref(false)
 const message = ref('')
 const refreshing = ref(false)
 
-const ratios = ['1:1', '4:3', '16:9', '9:16']
-const identityKey = 'nostr-visual-demo-identity'
+const ratios = Object.keys(ASPECT_RATIOS)
 
-const displayName = computed(() => profile.value.display_name || profile.value.name || identity.value?.name || 'Faro user')
+const activeProfile = computed(() => ({ ...(identity.value || {}), ...relayProfile.value }))
+const displayName = computed(() => activeProfile.value.display_name || activeProfile.value.name || 'Faro user')
+const avatarInitial = computed(() => (identity.value ? displayName.value.slice(0, 1) : '?'))
+const authLabel = computed(() => {
+  if (!identity.value) return 'logged out'
+  if (identity.value.source === 'nip07') return 'NIP-07'
+  return 'local dev'
+})
 const canPost = computed(() => Boolean(identity.value && imagePreview.value))
 const previewStyle = computed(() => ({ aspectRatio: cssRatio(selectedRatio.value) }))
 const combinedFeed = computed(() => [...posts.value, ...relayPosts.value].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
 
 onMounted(() => {
-  hasNip07.value = typeof window !== 'undefined' && Boolean(window.nostr)
-  identity.value = readJson(identityKey, null)
-  profile.value = identity.value || {}
+  hasNip07.value = typeof window !== 'undefined' && Boolean(window.nostr?.getPublicKey)
+  identity.value = loadIdentity()
   posts.value = loadLocalPosts()
+  if (identity.value?.pubkey) {
+    message.value = `Logged in as ${shortKey(identity.value.pubkey)}.`
+  }
 })
 
 function readJson(key, fallback) {
@@ -169,25 +193,38 @@ function readJson(key, fallback) {
   }
 }
 
+function loadIdentity() {
+  const current = readJson(identityKey, null)
+  if (current?.pubkey) return current
+
+  const legacy = readJson(legacyIdentityKey, null)
+  if (legacy?.pubkey) {
+    localStorage.setItem(identityKey, JSON.stringify(legacy))
+    localStorage.removeItem(legacyIdentityKey)
+    return legacy
+  }
+
+  return null
+}
+
 function saveIdentity(nextIdentity) {
-  message.value = ''
   localStorage.setItem(identityKey, JSON.stringify(nextIdentity))
   identity.value = nextIdentity
-  profile.value = nextIdentity
+  relayProfile.value = {}
+  message.value = `Logged in as ${shortKey(nextIdentity.pubkey)}.`
 }
 
 async function loginWithNip07() {
-  message.value = ''
-  if (!window.nostr) {
-    message.value = 'NIP-07 extension unavailable.'
+  if (!window.nostr?.getPublicKey) {
+    message.value = 'No NIP-07 signer detected in this browser.'
     return
   }
   try {
     const pubkey = await window.nostr.getPublicKey()
-    saveIdentity({ name: 'NIP-07 user', pubkey, source: 'nip07' })
+    saveIdentity({ name: 'Nostr user', pubkey, source: 'nip07' })
     await refreshFromNostr()
   } catch {
-    message.value = 'Could not sign in with NIP-07.'
+    message.value = 'NIP-07 login was cancelled or failed.'
   }
 }
 
@@ -195,16 +232,20 @@ function generateIdentity() {
   const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
   const pubkey = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-  saveIdentity({ name: `Demo ${pubkey.slice(0, 4)}`, pubkey, source: 'generated-demo' })
+  saveIdentity({ name: `Local ${pubkey.slice(0, 4)}`, pubkey, source: 'local-dev' })
 }
 
 function logout() {
   localStorage.removeItem(identityKey)
+  localStorage.removeItem(legacyIdentityKey)
   identity.value = null
-  profile.value = {}
+  relayProfile.value = {}
   following.value = []
   relayPosts.value = []
-  message.value = 'Logged out. Local demo posts were kept.'
+  caption.value = ''
+  imagePreview.value = ''
+  if (imageInput.value) imageInput.value.value = ''
+  message.value = 'Logged out. Local posts were kept.'
 }
 
 async function selectImage(event) {
@@ -226,7 +267,15 @@ async function setRatio(ratio) {
 }
 
 function publishPost() {
-  if (!canPost.value) return
+  if (!identity.value) {
+    message.value = 'Login or create a local development identity before posting.'
+    return
+  }
+  if (!imagePreview.value) {
+    message.value = 'Choose an image before posting.'
+    return
+  }
+
   const nextPost = {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     author: { name: displayName.value, pubkey: identity.value.pubkey },
@@ -234,41 +283,48 @@ function publishPost() {
     image: imagePreview.value,
     ratio: selectedRatio.value,
     createdAt: new Date().toISOString(),
-    source: 'local mock kind 1',
+    source: 'local kind 1 draft',
   }
+
   try {
     posts.value = saveLocalPostsWithPruning([nextPost, ...posts.value])
     caption.value = ''
     imagePreview.value = ''
     if (imageInput.value) imageInput.value.value = ''
-    message.value = 'Posted locally. Real publishing will use Blossom media plus Nostr kind 1.'
+    message.value = 'Posted locally.'
   } catch {
-    message.value = 'Could not save post locally. Try clearing demo cache.'
+    message.value = 'Could not save locally. Try a smaller image or clear local posts.'
   }
 }
 
-function clearDemoCache() {
+function clearPostCache() {
   clearLocalPosts()
   posts.value = []
-  message.value = 'Local demo post cache cleared. Identity remains signed in.'
+  message.value = 'Local posts cleared. Login state kept.'
 }
 
 async function refreshFromNostr() {
   if (!identity.value?.pubkey) {
-    message.value = 'Sign in before fetching relay data.'
+    message.value = 'Login before fetching Nostr data.'
     return
   }
+
   refreshing.value = true
   message.value = ''
   try {
-    const [relayProfile, relayFollowing] = await Promise.all([fetchProfile(identity.value.pubkey), fetchFollowing(identity.value.pubkey)])
-    if (relayProfile.ok) profile.value = { ...identity.value, ...relayProfile.profile, source: 'relay kind 0' }
+    const [profileResult, followingResult] = await Promise.all([
+      fetchProfile(identity.value.pubkey),
+      fetchFollowing(identity.value.pubkey),
+    ])
 
-    following.value = relayFollowing.ok ? relayFollowing.pubkeys : []
+    relayProfile.value = profileResult.ok ? profileResult.profile : {}
+    following.value = followingResult.ok ? followingResult.pubkeys : []
+
     const authors = [identity.value.pubkey, ...following.value].slice(0, 20)
-    const visuals = await fetchVisualFeed(authors)
-    const visualEvents = visuals.ok ? visuals.events : []
-    relayPosts.value = visualEvents.flatMap((event) =>
+    const visualResult = await fetchVisualFeed(authors)
+    const events = visualResult.ok ? visualResult.events : []
+
+    relayPosts.value = events.flatMap((event) =>
       event.imageUrls.map((image, imageIndex) => ({
         id: `${event.id}-${imageIndex}`,
         author: { name: shortKey(event.pubkey), pubkey: event.pubkey },
@@ -279,9 +335,12 @@ async function refreshFromNostr() {
         source: 'relay kind 1',
       })),
     )
-    message.value = relayProfile.ok || relayPosts.value.length ? 'Relay refresh complete.' : 'No relay profile or visual posts found; local demo still works.'
+
+    message.value = profileResult.ok || following.value.length || relayPosts.value.length
+      ? 'Nostr refresh complete.'
+      : 'No relay profile/follows/images found yet. Local posting is available.'
   } catch {
-    message.value = 'Relay fetch unavailable or timed out; local demo still works.'
+    message.value = 'Relay fetch failed or timed out. Local posting is available.'
   } finally {
     refreshing.value = false
   }
@@ -292,7 +351,7 @@ function shortKey(pubkey = '') {
 }
 
 function cssRatio(ratio) {
-  return ratio.replace(':', ' / ')
+  return ASPECT_RATIOS[ratio] ? ratio.replace(':', ' / ') : '1 / 1'
 }
 
 function formatDate(date) {
@@ -303,26 +362,25 @@ function formatDate(date) {
 <style scoped>
 .page { min-height: 100vh; }
 .content { width: min(100%, 920px); margin: 0 auto; padding: 16px 12px 40px; }
-.card { border: 1px solid rgba(84, 49, 37, 0.1); border-radius: 26px; background: rgba(255, 253, 248, 0.9); box-shadow: 0 18px 45px rgba(104, 69, 48, 0.1); }
-.intro, .profile, .login, .composer, .empty { padding: 18px; }
-.intro { display: flex; justify-content: space-between; gap: 14px; background: radial-gradient(circle at top left, rgba(255, 137, 91, 0.22), transparent 36%), rgba(255, 253, 248, 0.94); }
-.intro-actions { display: flex; align-items: flex-start; gap: 4px; }
+.card { border: 1px solid rgba(84, 49, 37, 0.1); border-radius: 24px; background: rgba(255, 253, 248, 0.94); box-shadow: 0 16px 36px rgba(104, 69, 48, 0.09); }
+.topbar, .profile, .composer, .empty { padding: 18px; }
+.topbar { display: flex; justify-content: space-between; gap: 14px; }
+.top-actions { display: flex; align-items: flex-start; gap: 4px; }
 .eyebrow { margin: 0 0 8px; color: #b6572d; font-size: 0.72rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
 h1, h2, p { margin: 0; }
-h1 { max-width: 13em; font-size: clamp(1.8rem, 7vw, 3.5rem); line-height: 0.95; letter-spacing: -0.07em; }
+h1 { max-width: 13em; font-size: clamp(1.6rem, 6vw, 3rem); line-height: 0.98; letter-spacing: -0.06em; }
 h2 { font-size: 1.2rem; letter-spacing: -0.04em; }
 .muted, .about, .section-title p, .key, .post-author div div { color: #7c6b62; line-height: 1.5; }
 .message { margin: 12px 0; background: #fff2df; color: #754219; }
+.inline-warning { background: #fff7e8; color: #704923; }
 .profile { display: flex; gap: 16px; margin-top: 12px; }
-.profile-avatar { flex: 0 0 auto; box-shadow: 0 10px 22px rgba(177, 87, 45, 0.24); }
+.profile-avatar { flex: 0 0 auto; box-shadow: 0 10px 22px rgba(177, 87, 45, 0.2); }
 .profile-body { min-width: 0; flex: 1; }
 .profile-row, .section-title, .feed-heading, .post-author { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .source-badge { border-radius: 999px; background: #f5ddc6; color: #733e24; }
 .about { margin-top: 8px; }
-.stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.stats, .login-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .stats span { padding: 7px 10px; border-radius: 999px; background: #fff0e5; color: #6f4635; font-size: 0.82rem; }
-.login { display: grid; gap: 12px; margin-top: 12px; }
-.login-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .composer { display: grid; gap: 14px; margin-top: 14px; }
 .composer-grid { display: grid; grid-template-columns: minmax(136px, 0.44fr) 1fr; gap: 14px; align-items: start; }
 .image-picker { display: grid; min-height: 136px; overflow: hidden; place-items: center; border: 1.5px dashed rgba(170, 91, 54, 0.34); border-radius: 22px; background: #fff6ed; color: #9b5c3b; cursor: pointer; }
@@ -342,7 +400,7 @@ h2 { font-size: 1.2rem; letter-spacing: -0.04em; }
 .post-caption { padding: 12px 14px 16px; line-height: 1.45; white-space: pre-wrap; }
 .empty { display: grid; gap: 8px; place-items: center; color: #7e6c62; text-align: center; }
 @media (max-width: 640px) {
-  .intro, .profile { flex-direction: column; }
+  .topbar, .profile { flex-direction: column; }
   .composer-grid, .feed-grid { grid-template-columns: 1fr; }
   .image-picker { min-height: 180px; }
   .section-title, .feed-heading { align-items: flex-start; flex-direction: column; }

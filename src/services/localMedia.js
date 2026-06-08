@@ -5,7 +5,8 @@ export const ASPECT_RATIOS = {
   '9:16': { label: '9:16', width: 9, height: 16 },
 }
 
-export const LOCAL_POSTS_STORAGE_KEY = 'nostr-visual-demo-posts'
+export const LOCAL_POSTS_STORAGE_KEY = 'faro-local-posts'
+const LEGACY_LOCAL_POSTS_STORAGE_KEY = 'nostr-visual-demo-posts'
 export const MAX_LOCAL_POSTS = 24
 export const MAX_IMAGE_SIDE = 1400
 export const JPEG_QUALITY = 0.82
@@ -178,7 +179,15 @@ function storageQuotaError(error) {
 export function loadLocalPosts() {
   assertBrowserApi('localStorage', globalThis.localStorage)
 
-  return newestFirst(safeParsePosts(localStorage.getItem(LOCAL_POSTS_STORAGE_KEY))).slice(0, MAX_LOCAL_POSTS)
+  const posts = newestFirst(safeParsePosts(localStorage.getItem(LOCAL_POSTS_STORAGE_KEY))).slice(0, MAX_LOCAL_POSTS)
+  if (posts.length) return posts
+
+  const legacyPosts = newestFirst(safeParsePosts(localStorage.getItem(LEGACY_LOCAL_POSTS_STORAGE_KEY))).slice(0, MAX_LOCAL_POSTS)
+  if (legacyPosts.length) {
+    saveLocalPostsWithPruning(legacyPosts)
+    localStorage.removeItem(LEGACY_LOCAL_POSTS_STORAGE_KEY)
+  }
+  return legacyPosts
 }
 
 export function saveLocalPostsWithPruning(posts, maxPosts = MAX_LOCAL_POSTS) {
@@ -216,4 +225,5 @@ export function clearLocalPosts() {
   assertBrowserApi('localStorage', globalThis.localStorage)
 
   localStorage.removeItem(LOCAL_POSTS_STORAGE_KEY)
+  localStorage.removeItem(LEGACY_LOCAL_POSTS_STORAGE_KEY)
 }
