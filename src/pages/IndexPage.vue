@@ -1,30 +1,14 @@
 <template>
   <q-page class="page">
     <main class="content">
-      <section class="appbar card">
-        <div class="brand">Faro</div>
-        <div class="search-pill">
-          <q-icon name="search" size="16px" />
-          <span>Search visuals</span>
-        </div>
-        <div class="top-actions">
-          <q-btn flat round icon="refresh" :loading="refreshing" @click="refreshFromNostr">
-            <q-tooltip>Refresh Nostr profile, follows and images</q-tooltip>
-          </q-btn>
-          <q-btn v-if="identity" flat round icon="logout" @click="logout">
-            <q-tooltip>Logout</q-tooltip>
-          </q-btn>
-        </div>
-      </section>
-
       <q-banner v-if="message" rounded class="message" dense>{{ message }}</q-banner>
 
       <div class="dashboard">
         <aside class="profile-panel card" data-testid="profile-card">
           <div class="profile-mini">
-            <q-avatar size="54px" class="profile-avatar" :color="identity ? 'black' : 'grey-5'" text-color="white">
+            <q-avatar size="54px" class="profile-avatar" :color="avatarColor(identity?.pubkey || displayName)" text-color="white">
               <img v-if="activeProfile.picture" :src="activeProfile.picture" alt="Profile avatar" />
-              <span v-else>{{ avatarInitial }}</span>
+              <span v-else>{{ initials(displayName) }}</span>
             </q-avatar>
             <div>
               <h2>{{ identity ? displayName : 'Not logged in' }}</h2>
@@ -59,13 +43,16 @@
         <section class="main-column">
           <section class="stories card">
             <div class="story your-story">
-              <q-avatar size="58px" color="black" text-color="white">{{ avatarInitial }}</q-avatar>
+              <q-avatar size="58px" :color="avatarColor(identity?.pubkey || displayName)" text-color="white">
+                <img v-if="activeProfile.picture" :src="activeProfile.picture" alt="Profile avatar" />
+                <span v-else>{{ initials(displayName) }}</span>
+              </q-avatar>
               <span>Your story</span>
             </div>
             <div v-for="person in storyProfiles" :key="person.pubkey" class="story">
-              <q-avatar size="58px" color="deep-orange-4" text-color="white">
+              <q-avatar size="58px" :color="avatarColor(person.pubkey || person.name)" text-color="white">
                 <img v-if="person.picture" :src="person.picture" :alt="person.name" />
-                <span v-else>{{ person.name.slice(0, 1) }}</span>
+                <span v-else>{{ initials(person.name) }}</span>
               </q-avatar>
               <span>{{ person.name }}</span>
             </div>
@@ -73,9 +60,9 @@
 
           <section class="composer card" data-testid="composer-card">
             <div class="composer-header">
-              <q-avatar size="44px" color="black" text-color="white">
+              <q-avatar size="44px" :color="avatarColor(identity?.pubkey || displayName)" text-color="white">
                 <img v-if="activeProfile.picture" :src="activeProfile.picture" alt="Profile avatar" />
-                <span v-else>{{ avatarInitial }}</span>
+                <span v-else>{{ initials(displayName) }}</span>
               </q-avatar>
               <div class="composer-title">
                 <strong>Add post</strong>
@@ -90,29 +77,27 @@
               Login or create a local identity to enable posting.
             </q-banner>
 
-            <label class="image-picker" :style="previewStyle" :class="{ 'has-preview': imagePreview }" data-testid="image-picker">
-              <input ref="imageInput" type="file" accept="image/*" data-testid="image-input" @change="selectImage" />
-              <img v-if="imagePreview" :src="imagePreview" alt="Selected preview" />
-              <div v-else class="picker-empty">
-                <q-icon name="add_photo_alternate" size="30px" />
-                <strong>Add image</strong>
-                <span>Pick a ratio, then choose a photo.</span>
+            <input ref="imageInput" class="hidden-input" type="file" accept="image/*" data-testid="image-input" @change="selectImage" />
+            <div class="composer-tools">
+              <q-btn unelevated color="dark" icon="add_photo_alternate" label="Add photo" data-testid="image-picker" @click="openImagePicker" />
+              <div class="ratio-row" aria-label="Image aspect ratio">
+                <q-btn
+                  v-for="ratio in ratios"
+                  :key="ratio"
+                  rounded
+                  dense
+                  unelevated
+                  :class="{ active: selectedRatio === ratio }"
+                  :label="ratio"
+                  :data-testid="`ratio-${ratio}`"
+                  @click="setRatio(ratio)"
+                />
               </div>
-            </label>
-
-            <div class="ratio-row" aria-label="Image aspect ratio">
-              <q-btn
-                v-for="ratio in ratios"
-                :key="ratio"
-                rounded
-                dense
-                unelevated
-                :class="{ active: selectedRatio === ratio }"
-                :label="ratio"
-                :data-testid="`ratio-${ratio}`"
-                @click="setRatio(ratio)"
-              />
             </div>
+
+            <label v-if="imagePreview" class="image-picker" :style="previewStyle" :class="{ 'has-preview': imagePreview }">
+              <img :src="imagePreview" alt="Selected preview" />
+            </label>
             <q-input v-model="caption" type="textarea" autogrow outlined placeholder="Caption…" data-testid="caption-input" />
             <q-btn unelevated color="dark" class="post-btn" :disable="!canPost" label="Post locally" data-testid="post-button" @click="publishPost" />
           </section>
@@ -129,9 +114,9 @@
           </div>
           <strong>Suggestions For You</strong>
           <div v-for="person in suggestedProfiles" :key="person.pubkey" class="suggestion">
-            <q-avatar size="34px" color="black" text-color="white">
+            <q-avatar size="34px" :color="avatarColor(person.pubkey || person.name)" text-color="white">
               <img v-if="person.picture" :src="person.picture" :alt="person.name" />
-              <span v-else>{{ person.name.slice(0, 1) }}</span>
+              <span v-else>{{ initials(person.name) }}</span>
             </q-avatar>
             <div>
               <strong>{{ person.name }}</strong>
@@ -145,15 +130,18 @@
       <section class="feed">
         <div class="feed-heading">
           <h2>Visual feed</h2>
-          <q-btn flat dense icon="refresh" label="Fetch Nostr" :loading="refreshing" @click="refreshFromNostr" />
+          <div class="feed-actions">
+            <q-toggle v-model="twoColumnFeed" dense label="2 columns" />
+            <q-btn flat dense icon="refresh" label="Fetch Nostr" :loading="refreshing" @click="refreshFromNostr" />
+          </div>
         </div>
 
-        <div v-if="combinedFeed.length" class="feed-grid" data-testid="feed-grid">
+        <div v-if="combinedFeed.length" class="feed-grid" :class="{ masonry: twoColumnFeed }" data-testid="feed-grid">
           <article v-for="post in combinedFeed" :key="post.id" class="post card" data-testid="feed-post">
             <div class="post-author">
-              <q-avatar size="34px" color="deep-orange-4" text-color="white">
+              <q-avatar size="34px" :color="avatarColor(post.author.pubkey || post.author.name)" text-color="white">
                 <img v-if="post.author.picture" :src="post.author.picture" :alt="post.author.name" />
-                <span v-else>{{ post.author.name.slice(0, 1) }}</span>
+                <span v-else>{{ initials(post.author.name) }}</span>
               </q-avatar>
               <div>
                 <strong>{{ post.author.name }}</strong>
@@ -187,6 +175,7 @@ import { fetchFollowing, fetchProfile, fetchVisualFeed } from 'src/services/nost
 
 const identityKey = 'faro-identity'
 const legacyIdentityKey = 'nostr-visual-demo-identity'
+const relayCacheKey = 'faro-relay-cache'
 
 const identity = ref(null)
 const relayProfile = ref({})
@@ -201,13 +190,13 @@ const imageInput = ref(null)
 const hasNip07 = ref(false)
 const message = ref('')
 const refreshing = ref(false)
+const twoColumnFeed = ref(false)
 
 const ratios = Object.keys(ASPECT_RATIOS)
 
 const activeProfile = computed(() => ({ ...(identity.value || {}), ...relayProfile.value }))
 const displayName = computed(() => activeProfile.value.display_name || activeProfile.value.name || 'Faro user')
 const profileSubtitle = computed(() => activeProfile.value.nip05 || shortKey(identity.value?.pubkey || ''))
-const avatarInitial = computed(() => (identity.value ? displayName.value.slice(0, 1) : '?'))
 const authLabel = computed(() => {
   if (!identity.value) return 'logged out'
   if (identity.value.source === 'nip07') return 'NIP-07'
@@ -231,8 +220,9 @@ onMounted(() => {
   hasNip07.value = typeof window !== 'undefined' && Boolean(window.nostr?.getPublicKey)
   identity.value = loadIdentity()
   posts.value = loadLocalPosts()
+  loadRelayCache()
   if (identity.value?.pubkey) {
-    message.value = `Logged in as ${shortKey(identity.value.pubkey)}.`
+    refreshFromNostr({ silent: true })
   }
 })
 
@@ -355,14 +345,42 @@ function clearPostCache() {
   message.value = 'Local posts cleared. Login state kept.'
 }
 
-async function refreshFromNostr() {
+function openImagePicker() {
+  imageInput.value?.click()
+}
+
+function loadRelayCache() {
+  const cache = readJson(relayCacheKey, null)
+  if (!cache) return
+  if (cache.pubkey && cache.pubkey !== identity.value?.pubkey) return
+  relayProfile.value = cache.relayProfile || {}
+  following.value = Array.isArray(cache.following) ? cache.following : []
+  relayPosts.value = Array.isArray(cache.relayPosts) ? cache.relayPosts : []
+  authorProfiles.value = cache.authorProfiles || {}
+}
+
+function saveRelayCache() {
+  localStorage.setItem(
+    relayCacheKey,
+    JSON.stringify({
+      relayProfile: relayProfile.value,
+      pubkey: identity.value?.pubkey || '',
+      following: following.value,
+      relayPosts: relayPosts.value.slice(0, 80),
+      authorProfiles: authorProfiles.value,
+      cachedAt: new Date().toISOString(),
+    }),
+  )
+}
+
+async function refreshFromNostr({ silent = false } = {}) {
   if (!identity.value?.pubkey) {
-    message.value = 'Login before fetching Nostr data.'
+    if (!silent) message.value = 'Login before fetching Nostr data.'
     return
   }
 
   refreshing.value = true
-  message.value = ''
+  if (!silent) message.value = ''
   try {
     const [profileResult, followingResult] = await Promise.all([
       fetchProfile(identity.value.pubkey),
@@ -391,11 +409,15 @@ async function refreshFromNostr() {
       })),
     )
 
-    message.value = profileResult.ok || following.value.length || relayPosts.value.length
-      ? 'Nostr refresh complete.'
-      : 'No relay profile/follows/images found yet. Local posting is available.'
+    saveRelayCache()
+
+    if (!silent) {
+      message.value = profileResult.ok || following.value.length || relayPosts.value.length
+        ? 'Nostr refresh complete.'
+        : 'No relay profile/follows/images found yet. Local posting is available.'
+    }
   } catch {
-    message.value = 'Relay fetch failed or timed out. Local posting is available.'
+    if (!silent) message.value = 'Relay fetch failed or timed out. Local posting is available.'
   } finally {
     refreshing.value = false
   }
@@ -403,6 +425,19 @@ async function refreshFromNostr() {
 
 function shortKey(pubkey = '') {
   return pubkey.length > 14 ? `${pubkey.slice(0, 8)}…${pubkey.slice(-6)}` : pubkey
+}
+
+function initials(name = '') {
+  const cleaned = String(name).trim()
+  if (!cleaned || cleaned === 'Faro user') return '?'
+  const parts = cleaned.split(/\s+/).filter(Boolean)
+  return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+}
+
+function avatarColor(seed = '') {
+  const palette = ['indigo-6', 'teal-6', 'deep-orange-5', 'purple-6', 'blue-grey-6', 'pink-6']
+  const value = String(seed || 'faro').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
+  return palette[value % palette.length]
 }
 
 async function hydrateAuthorProfiles(pubkeys) {
@@ -440,22 +475,18 @@ function formatDate(date) {
 
 <style scoped>
 .page { min-height: 100vh; background: #eef3f6; }
-.content { width: min(100%, 1180px); margin: 0 auto; padding: 18px 12px 42px; }
+.content { width: min(100%, 1180px); margin: 0 auto; padding: 12px 12px 42px; }
 .card { border: 1px solid rgba(20, 24, 28, 0.05); border-radius: 24px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 20px 50px rgba(34, 47, 62, 0.08); }
 h1, h2, p { margin: 0; }
 h2 { font-size: 1rem; letter-spacing: -0.03em; }
-.appbar { display: grid; grid-template-columns: 220px minmax(180px, 1fr) auto; align-items: center; gap: 18px; padding: 12px 24px; }
-.brand { font-size: 1.55rem; font-weight: 900; letter-spacing: -0.08em; }
-.search-pill { display: flex; align-items: center; justify-content: center; gap: 8px; width: min(100%, 280px); justify-self: center; padding: 9px 16px; border-radius: 14px; background: #f4f4f4; color: #777; font-size: 0.8rem; }
-.top-actions { display: flex; align-items: center; gap: 4px; }
 .message { margin: 12px 0; background: #fff2df; color: #754219; }
-.dashboard { display: grid; grid-template-columns: 230px minmax(0, 1fr) 300px; gap: 22px; align-items: start; margin-top: 12px; }
+.dashboard { display: grid; grid-template-columns: 230px minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
 .profile-panel, .composer, .stories, .insights, .empty { padding: 18px; }
 .profile-panel { position: sticky; top: 16px; min-height: 520px; display: flex; flex-direction: column; gap: 20px; }
 .profile-mini { display: flex; align-items: center; gap: 12px; }
 .profile-mini p, .muted, .post-author div div, .composer-title span, .suggestion span, .story span { color: #7d848b; font-size: 0.78rem; line-height: 1.4; }
 .profile-avatar { flex: 0 0 auto; box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12); }
-.side-menu { display: grid; gap: 8px; }
+.side-menu { display: grid; gap: 8px; margin-top: 6px; }
 .side-menu span { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 14px; color: #525960; font-weight: 650; }
 .side-menu .active { background: #f3f3f3; color: #151515; }
 .profile-actions { display: grid; gap: 10px; margin-top: auto; }
@@ -469,11 +500,12 @@ h2 { font-size: 1rem; letter-spacing: -0.03em; }
 .composer-header, .section-title, .feed-heading, .post-author, .suggestion { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .composer-title { display: grid; flex: 1; }
 .inline-warning { background: #fff7e8; color: #704923; }
-.image-picker { display: grid; min-height: 230px; overflow: hidden; place-items: center; border: 1.5px dashed rgba(0, 0, 0, 0.18); border-radius: 22px; background: #f8f8f8; color: #555; cursor: pointer; }
-.image-picker input { display: none; }
+.image-picker { display: grid; min-height: 160px; overflow: hidden; place-items: center; border: 1.5px dashed rgba(0, 0, 0, 0.18); border-radius: 22px; background: #f8f8f8; color: #555; cursor: pointer; }
+.hidden-input, .image-picker input { display: none; }
 .image-picker img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .picker-empty { display: grid; gap: 4px; place-items: center; padding: 14px; text-align: center; }
 .picker-empty span { color: #888; font-size: 0.82rem; }
+.composer-tools, .feed-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .ratio-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .ratio-row .q-btn { background: #f1f1f1; color: #333; font-weight: 800; }
 .ratio-row .q-btn.active { background: #111; color: white; }
@@ -485,7 +517,8 @@ h2 { font-size: 1rem; letter-spacing: -0.03em; }
 .suggestion { justify-content: flex-start; }
 .suggestion > div { display: grid; flex: 1; min-width: 0; }
 .feed { display: grid; gap: 14px; margin-top: 22px; }
-.feed-grid { column-count: 3; column-gap: 14px; }
+.feed-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.feed-grid.masonry { display: block; column-count: 2; column-gap: 14px; }
 .post { display: inline-block; width: 100%; overflow: hidden; margin: 0 0 14px; break-inside: avoid; }
 .post-author { justify-content: flex-start; padding: 12px; }
 .post-image { display: block; width: 100%; height: auto; object-fit: contain; }
@@ -494,17 +527,14 @@ h2 { font-size: 1rem; letter-spacing: -0.03em; }
 @media (max-width: 1020px) {
   .dashboard { grid-template-columns: 220px minmax(0, 1fr); }
   .insights { display: none; }
-  .feed-grid { column-count: 2; }
 }
 @media (max-width: 700px) {
   .content { padding: 10px 8px 34px; }
-  .appbar { grid-template-columns: 1fr auto; padding: 10px 14px; }
-  .search-pill { display: none; }
   .dashboard { grid-template-columns: 1fr; gap: 12px; }
   .profile-panel { position: static; min-height: auto; }
   .side-menu { display: none; }
   .profile-actions { margin-top: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .feed-grid { column-count: 1; }
+  .feed-grid.masonry { column-count: 1; }
   .image-picker { min-height: 190px; }
   .section-title, .feed-heading { align-items: flex-start; flex-direction: column; }
 }
