@@ -1,6 +1,18 @@
 <template>
   <q-page class="page">
     <main class="content">
+      <section class="appbar card">
+        <div class="brand">Faro</div>
+        <div class="top-actions">
+          <q-btn flat round icon="refresh" :loading="refreshing" @click="refreshFromNostr">
+            <q-tooltip>Refresh Nostr data</q-tooltip>
+          </q-btn>
+          <q-btn v-if="identity" flat round icon="logout" @click="logout">
+            <q-tooltip>Logout</q-tooltip>
+          </q-btn>
+        </div>
+      </section>
+
       <q-banner v-if="message" rounded class="message" dense>{{ message }}</q-banner>
 
       <div class="dashboard">
@@ -101,31 +113,6 @@
             <q-input v-model="caption" type="textarea" autogrow outlined placeholder="Caption…" data-testid="caption-input" />
             <q-btn unelevated color="dark" class="post-btn" :disable="!canPost" label="Post locally" data-testid="post-button" @click="publishPost" />
           </section>
-        </section>
-
-        <aside class="insights card">
-          <div class="section-title compact">
-            <strong>Insights</strong>
-            <span>See More</span>
-          </div>
-          <p class="muted">{{ following.length }} follows · {{ relayPosts.length }} relay visuals · {{ posts.length }} local</p>
-          <div class="bars" aria-hidden="true">
-            <i v-for="height in [42, 74, 28, 55, 82, 12, 50]" :key="height" :style="{ height: `${height}%` }" />
-          </div>
-          <strong>Suggestions For You</strong>
-          <div v-for="person in suggestedProfiles" :key="person.pubkey" class="suggestion">
-            <q-avatar size="34px" :color="avatarColor(person.pubkey || person.name)" text-color="white">
-              <img v-if="person.picture" :src="person.picture" :alt="person.name" />
-              <span v-else>{{ initials(person.name) }}</span>
-            </q-avatar>
-            <div>
-              <strong>{{ person.name }}</strong>
-              <span>{{ shortKey(person.pubkey) }}</span>
-            </div>
-            <q-btn flat dense color="primary" label="Follow" />
-          </div>
-        </aside>
-      </div>
 
       <section class="feed">
         <div class="feed-heading">
@@ -158,6 +145,32 @@
           <p>No images yet. Post locally or fetch Nostr visuals from followed pubkeys.</p>
         </div>
       </section>
+        </section>
+
+        <aside class="insights card">
+          <div class="section-title compact">
+            <strong>Insights</strong>
+            <span>See More</span>
+          </div>
+          <p class="muted">{{ following.length }} follows · {{ relayPosts.length }} relay visuals · {{ posts.length }} local</p>
+          <div class="bars" aria-hidden="true">
+            <i v-for="height in [42, 74, 28, 55, 82, 12, 50]" :key="height" :style="{ height: `${height}%` }" />
+          </div>
+          <strong>Suggestions For You</strong>
+          <div v-for="person in suggestedProfiles" :key="person.pubkey" class="suggestion">
+            <q-avatar size="34px" :color="avatarColor(person.pubkey || person.name)" text-color="white">
+              <img v-if="person.picture" :src="person.picture" :alt="person.name" />
+              <span v-else>{{ initials(person.name) }}</span>
+            </q-avatar>
+            <div>
+              <strong>{{ person.name }}</strong>
+              <span>{{ shortKey(person.pubkey) }}</span>
+            </div>
+            <q-btn flat dense color="primary" label="Follow" />
+          </div>
+        </aside>
+      </div>
+
     </main>
   </q-page>
 </template>
@@ -479,6 +492,9 @@ function formatDate(date) {
 .card { border: 1px solid rgba(20, 24, 28, 0.05); border-radius: 24px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 20px 50px rgba(34, 47, 62, 0.08); }
 h1, h2, p { margin: 0; }
 h2 { font-size: 1rem; letter-spacing: -0.03em; }
+.appbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 12px 18px; }
+.brand { font-size: 1.55rem; font-weight: 900; letter-spacing: -0.08em; }
+.top-actions { display: flex; align-items: center; gap: 4px; }
 .message { margin: 12px 0; background: #fff2df; color: #754219; }
 .dashboard { display: grid; grid-template-columns: 230px minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
 .profile-panel, .composer, .stories, .insights, .empty { padding: 18px; }
@@ -516,7 +532,7 @@ h2 { font-size: 1rem; letter-spacing: -0.03em; }
 .bars i { flex: 1; min-width: 18px; border-radius: 8px 8px 0 0; background: #1299e8; }
 .suggestion { justify-content: flex-start; }
 .suggestion > div { display: grid; flex: 1; min-width: 0; }
-.feed { display: grid; gap: 14px; margin-top: 22px; }
+.feed { display: grid; gap: 14px; }
 .feed-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .feed-grid.masonry { display: block; column-count: 2; column-gap: 14px; }
 .post { display: inline-block; width: 100%; overflow: hidden; margin: 0 0 14px; break-inside: avoid; }
