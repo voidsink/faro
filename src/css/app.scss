@@ -1,1 +1,51 @@
 // app global css
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@700;800;900&display=swap');
+
+:root {
+  --faro-font-body: 'Inter', sans-serif;
+  --faro-font-heading: 'Montserrat', sans-serif;
+  --faro-radius-sm: 14px;
+  --faro-radius-md: 22px;
+  --faro-radius-lg: 24px;
+  --faro-surface-border: rgba(20, 24, 28, 0.06);
+  --faro-surface-bg: rgba(255, 255, 255, 0.96);
+  --faro-page-bg: #eef3f6;
+}
+
+body {
+  font-family: var(--faro-font-body);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.brand-title,
+.section-heading {
+  font-family: var(--faro-font-heading);
+}
+
+.faro-page {
+  min-height: 100vh;
+  background: var(--faro-page-bg);
+}
+
+.faro-page-inner {
+  width: min(100%, var(--faro-page-max, 960px));
+  margin: 0 auto;
+  padding: 12px 12px 42px;
+}
+
+.faro-card,
+.faro-surface {
+  border-color: var(--faro-surface-border);
+  border-radius: var(--faro-radius-lg);
+  background: var(--faro-surface-bg);
+}
+
+.faro-warning {
+  background: #fff2df;
+  color: #754219;
+}
