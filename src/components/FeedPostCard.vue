@@ -30,8 +30,18 @@
 
     <q-card-actions class="post-actions row items-center justify-between q-px-sm q-py-xs">
       <div class="row items-center q-gutter-xs">
-        <q-btn flat round dense icon="favorite_border" aria-label="Like post">
-          <q-tooltip>Like</q-tooltip>
+        <q-btn
+          flat
+          round
+          dense
+          :icon="likedIcon"
+          :color="likedColor"
+          :loading="interaction?.publishing"
+          :disable="!post.nostr || interaction?.likedByMe"
+          aria-label="Like post"
+          @click="$emit('like-post')"
+        >
+          <q-tooltip>{{ likeTooltip }}</q-tooltip>
         </q-btn>
         <q-btn
           flat
@@ -54,7 +64,7 @@
     </q-card-actions>
 
     <q-card-section class="q-pt-none q-px-md q-pb-md">
-      <div class="text-caption text-weight-bold">Liked and zapped by Nostr friends</div>
+      <div class="text-caption text-weight-bold">{{ engagementLabel }}</div>
       <p v-if="post.caption" class="post-caption q-mt-xs q-mb-none">
         <strong>{{ post.author.name }}</strong>
         {{ post.caption }}
@@ -70,7 +80,21 @@
 
       <q-slide-transition>
         <div v-if="commentsOpen" class="q-mt-sm">
-          <div class="text-caption text-blue-grey-5 q-mb-sm">
+          <div v-if="replies.length" class="column q-gutter-sm q-mb-sm">
+            <div v-for="reply in replies" :key="reply.id" class="reply-row row no-wrap q-gutter-sm">
+              <user-avatar
+                size="26px"
+                :name="replyAuthor(reply).name"
+                :pubkey="reply.pubkey"
+                :picture="replyAuthor(reply).picture"
+              />
+              <div class="reply-body">
+                <strong>{{ replyAuthor(reply).name }}</strong>
+                {{ reply.content }}
+              </div>
+            </div>
+          </div>
+          <div v-else class="text-caption text-blue-grey-5 q-mb-sm">
             No comments loaded yet.
           </div>
           <q-input
@@ -91,7 +115,9 @@
                 no-caps
                 color="primary"
                 label="Post"
-                :disable="!commentDraft.trim()"
+                :loading="interaction?.publishing"
+                :disable="!commentDraft.trim() || !post.nostr || interaction?.publishing"
+                @click="publishComment"
               />
             </template>
           </q-input>
@@ -114,9 +140,30 @@ const props = defineProps({
     type: Function,
     required: true,
   },
+  interaction: {
+    type: Object,
+    default: null,
+  },
+  replyAuthor: {
+    type: Function,
+    default: () => ({ name: 'Nostr user', pubkey: '', picture: '' }),
+  },
 })
 
+const emit = defineEmits(['like-post', 'comment-post'])
+
 const formattedDate = computed(() => props.formatDate(props.post.createdAt))
+const replies = computed(() => props.interaction?.replies || [])
+const likeCount = computed(() => props.interaction?.count || 0)
+const likedIcon = computed(() => (props.interaction?.likedByMe ? 'favorite' : 'favorite_border'))
+const likedColor = computed(() => (props.interaction?.likedByMe ? 'red-5' : undefined))
+const likeTooltip = computed(() => (props.interaction?.likedByMe ? 'Liked by you' : 'Like'))
+const engagementLabel = computed(() => {
+  const likes = likeCount.value
+  const comments = replies.value.length
+  if (likes || comments) return `${likes} ${likes === 1 ? 'like' : 'likes'} · ${comments} ${comments === 1 ? 'comment' : 'comments'}`
+  return props.post.nostr ? 'No Nostr reactions yet' : 'Local draft'
+})
 const commentsOpen = ref(false)
 const commentDraft = ref('')
 const commentInput = ref(null)
@@ -129,6 +176,13 @@ async function openComments() {
   commentsOpen.value = true
   await nextTick()
   commentInput.value?.focus?.()
+}
+
+function publishComment() {
+  const content = commentDraft.value.trim()
+  if (!content) return
+  emit('comment-post', content)
+  commentDraft.value = ''
 }
 </script>
 
@@ -150,6 +204,13 @@ async function openComments() {
 
 .post-actions :deep(.q-icon) {
   font-size: 25px;
+}
+
+.reply-body {
+  flex: 1;
+  line-height: 1.4;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .comment-input {

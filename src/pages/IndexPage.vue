@@ -41,6 +41,10 @@
             :refreshing="refreshing"
             :has-more="hasMoreRelayPosts"
             :format-date="formatDate"
+            :interaction-for-post="session.interactionForPost"
+            :reply-author="session.replyAuthor"
+            @like-post="session.likePost"
+            @comment-post="session.commentOnPost"
             @load-more="loadMoreFeed"
             @refresh="session.refreshFromNostr"
           />

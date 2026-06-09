@@ -26,9 +26,19 @@ function nowSeconds() {
   return Math.floor(Date.now() / 1000)
 }
 
+function eventReferencesId(event, eventId) {
+  return (event?.tags || []).some((tag) => Array.isArray(tag) && tag[0] === 'e' && tag[1] === eventId)
+}
+
+function isPositiveReaction(event) {
+  const content = typeof event?.content === 'string' ? event.content.trim() : ''
+  return content !== '-'
+}
+
 function makeSubId() {
   return `faro-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
+
 
 function closeSocket(socket) {
   try {
@@ -262,5 +272,183 @@ export async function fetchVisualFeed(authors, options = {}) {
     }
   } catch (error) {
     return { ...fallback, error: error?.message || 'Visual feed fetch failed' }
+  }
+}
+
+export function buildReactionEvent(rootEvent) {
+  return {
+    kind: 7,
+    content: '+',
+    tags: [['e', rootEvent.id], ['p', rootEvent.pubkey]],
+  }
+}
+
+export function buildReplyEvent(rootEvent, content) {
+  return {
+    kind: 1,
+    content: String(content || '').trim(),
+    tags: [['e', rootEvent.id, '', 'root'], ['p', rootEvent.pubkey]],
+  }
+}
+
+export async function publishEvent(event, options = {}) {
+  const relayUrls = normalizeRelays(options.relays || DEFAULT_RELAYS)
+  const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS
+  const fallback = { ok: false, event, results: [], error: null }
+
+  if (!event?.id || !relayUrls.length || typeof WebSocket === 'undefined') {
+    return { ...fallback, error: 'Cannot publish event in this environment' }
+  }
+
+  const results = await Promise.all(
+    relayUrls.map(
+      (relayUrl) =>
+        new Promise((resolve) => {
+          let socket
+          let settled = false
+          const finish = (result) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timer)
+            closeSocket(socket)
+            resolve(result)
+          }
+          const timer = setTimeout(
+            () => finish({ relay: relayUrl, ok: false, message: 'Publish timed out' }),
+            timeoutMs,
+          )
+
+          try {
+            socket = new WebSocket(relayUrl)
+          } catch (error) {
+            finish({ relay: relayUrl, ok: false, message: error?.message || 'Could not open relay' })
+            return
+          }
+
+          socket.onopen = () => socket.send(JSON.stringify(['EVENT', event]))
+          socket.onmessage = (message) => {
+            try {
+              const data = JSON.parse(message.data)
+              if (Array.isArray(data) && data[0] === 'OK' && data[1] === event.id) {
+                finish({ relay: relayUrl, ok: Boolean(data[2]), message: data[3] || '' })
+              }
+            } catch {
+              // Ignore malformed relay messages.
+            }
+          }
+          socket.onerror = () => finish({ relay: relayUrl, ok: false, message: 'Relay connection failed' })
+          socket.onclose = () => finish({ relay: relayUrl, ok: false, message: 'Relay closed before OK' })
+        }),
+    ),
+  )
+
+  return { ok: results.some((result) => result.ok), event, results, error: null }
+}
+
+export async function signAndPublish(unsignedEvent, options = {}) {
+  const signer = options.signer || globalThis.window?.nostr
+  const fallback = { ok: false, event: null, results: [], error: null }
+
+  if (!signer?.signEvent) return { ...fallback, error: 'No NIP-07 signer available' }
+
+  try {
+    const event = await signer.signEvent({
+      ...unsignedEvent,
+      created_at: unsignedEvent.created_at || nowSeconds(),
+    })
+    const publishResult = await publishEvent(event, options)
+    return { ...publishResult, event }
+  } catch (error) {
+    return { ...fallback, error: error?.message || 'Signing failed' }
+  }
+}
+
+export async function publishReaction(rootEvent, options = {}) {
+  return signAndPublish(buildReactionEvent(rootEvent), options)
+}
+
+export async function publishReply(rootEvent, content, options = {}) {
+  return signAndPublish(buildReplyEvent(rootEvent, content), options)
+}
+
+export function buildReactionFilter(eventIds, options = {}) {
+  return {
+    kinds: [7],
+    '#e': uniqueStrings(eventIds).filter((eventId) => HEX64_PATTERN.test(eventId)),
+    limit: options.limit || 200,
+  }
+}
+
+export function buildReplyFilter(eventIds, options = {}) {
+  return {
+    kinds: [1],
+    '#e': uniqueStrings(eventIds).filter((eventId) => HEX64_PATTERN.test(eventId)),
+    limit: options.limit || 200,
+  }
+}
+
+export function extractReactionSummary(events, eventId, viewerPubkey = '') {
+  const reactions = (events || []).filter(
+    (event) => event?.kind === 7 && eventReferencesId(event, eventId) && isPositiveReaction(event),
+  )
+
+  return {
+    count: reactions.length,
+    likedByMe: Boolean(viewerPubkey && reactions.some((event) => event.pubkey === viewerPubkey)),
+    reactions,
+  }
+}
+
+export function mapReplyEvents(events, eventId) {
+  return (events || [])
+    .filter((event) => event?.kind === 1 && eventReferencesId(event, eventId))
+    .sort((a, b) => (a.created_at || 0) - (b.created_at || 0))
+    .map((event) => ({
+      id: event.id,
+      eventId,
+      pubkey: event.pubkey,
+      content: event.content || '',
+      createdAt: new Date((event.created_at || nowSeconds()) * 1000).toISOString(),
+      tags: event.tags || [],
+      event,
+    }))
+}
+
+export async function fetchInteractions(eventIds, options = {}) {
+  const ids = uniqueStrings(eventIds).filter((eventId) => HEX64_PATTERN.test(eventId))
+  const fallback = { ok: false, interactions: {}, error: null }
+
+  if (!ids.length) return { ...fallback, error: 'No valid event ids' }
+
+  try {
+    const [reactionEvents, replyEvents] = await Promise.all([
+      requestEvents({
+        relays: options.relays || DEFAULT_RELAYS,
+        timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
+        filters: [buildReactionFilter(ids, { limit: options.reactionLimit || 300 })],
+      }),
+      requestEvents({
+        relays: options.relays || DEFAULT_RELAYS,
+        timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
+        filters: [buildReplyFilter(ids, { limit: options.replyLimit || 300 })],
+      }),
+    ])
+
+    const interactions = Object.fromEntries(
+      ids.map((eventId) => {
+        const reactionSummary = extractReactionSummary(reactionEvents, eventId, options.viewerPubkey)
+        return [
+          eventId,
+          {
+            ...reactionSummary,
+            replies: mapReplyEvents(replyEvents, eventId),
+          },
+        ]
+      }),
+    )
+
+    return { ok: true, interactions, error: null }
+  } catch (error) {
+    return { ...fallback, error: error?.message || 'Interaction fetch failed' }
   }
 }

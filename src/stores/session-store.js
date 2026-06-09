@@ -4,7 +4,14 @@ import {
   loadLocalPosts,
   saveLocalPostsWithPruning,
 } from 'src/services/localMedia'
-import { fetchFollowing, fetchProfile, fetchVisualFeed } from 'src/services/nostrRelay'
+import {
+  fetchFollowing,
+  fetchInteractions,
+  fetchProfile,
+  fetchVisualFeed,
+  publishReaction,
+  publishReply,
+} from 'src/services/nostrRelay'
 
 const identityKey = 'faro-identity'
 const legacyIdentityKey = 'nostr-visual-demo-identity'
@@ -51,9 +58,11 @@ export const useSessionStore = defineStore('session', {
     followers: [],
     localPosts: [],
     relayPosts: [],
+    interactionsByEventId: {},
     relayCursor: null,
     hasMoreRelayPosts: false,
     loadingMoreRelayPosts: false,
+    publishingInteractions: {},
     message: '',
     refreshing: false,
   }),
@@ -150,6 +159,7 @@ export const useSessionStore = defineStore('session', {
       this.following = []
       this.followers = []
       this.relayPosts = []
+      this.interactionsByEventId = {}
       this.relayCursor = null
       this.hasMoreRelayPosts = false
       this.loadingMoreRelayPosts = false
@@ -189,6 +199,7 @@ export const useSessionStore = defineStore('session', {
       this.following = []
       this.followers = []
       this.relayPosts = []
+      this.interactionsByEventId = {}
       this.relayCursor = null
       this.hasMoreRelayPosts = false
       this.loadingMoreRelayPosts = false
@@ -206,6 +217,7 @@ export const useSessionStore = defineStore('session', {
       this.following = Array.isArray(cache.following) ? cache.following : []
       this.followers = Array.isArray(cache.followers) ? cache.followers : []
       this.relayPosts = Array.isArray(cache.relayPosts) ? cache.relayPosts : []
+      this.interactionsByEventId = cache.interactionsByEventId || {}
       this.relayCursor = cache.relayCursor || this.cursorFromPosts(this.relayPosts)
       this.hasMoreRelayPosts = Boolean(cache.hasMoreRelayPosts)
       this.authorProfiles = cache.authorProfiles || {}
@@ -220,6 +232,7 @@ export const useSessionStore = defineStore('session', {
           following: this.following,
           followers: this.followers,
           relayPosts: this.relayPosts.slice(0, 80),
+          interactionsByEventId: this.interactionsByEventId,
           relayCursor: this.relayCursor,
           hasMoreRelayPosts: this.hasMoreRelayPosts,
           authorProfiles: this.authorProfiles,
@@ -275,6 +288,7 @@ export const useSessionStore = defineStore('session', {
           await this.hydrateAuthorProfiles(pubkeys)
 
           this.relayPosts = this.postsFromVisualEvents(events)
+          await this.refreshInteractionsForPosts(this.relayPosts)
           this.relayCursor = this.cursorFromEvents(events)
           this.hasMoreRelayPosts = events.length >= FEED_PAGE_SIZE
           refreshed = true
@@ -324,6 +338,7 @@ export const useSessionStore = defineStore('session', {
         const existing = new Set(this.relayPosts.map((post) => post.id))
         const nextPosts = this.postsFromVisualEvents(events).filter((post) => !existing.has(post.id))
         this.relayPosts = [...this.relayPosts, ...nextPosts].sort(newestFirst)
+        await this.refreshInteractionsForPosts(nextPosts)
         this.relayCursor = this.cursorFromEvents(events) || this.cursorFromPosts(this.relayPosts)
         this.hasMoreRelayPosts = events.length >= FEED_PAGE_SIZE && nextPosts.length > 0
         this.saveRelayCache()
@@ -366,8 +381,133 @@ export const useSessionStore = defineStore('session', {
           ratio: '1:1',
           createdAt: new Date((event.created_at || Date.now() / 1000) * 1000).toISOString(),
           source: 'relay kind 1',
+          nostr: {
+            id: event.id,
+            pubkey: event.pubkey,
+            kind: event.kind,
+            tags: event.tags || [],
+            created_at: event.created_at,
+          },
         })),
       )
+    },
+
+    async refreshInteractionsForPosts(posts) {
+      const eventIds = [...new Set((posts || []).map((post) => post.nostr?.id).filter(Boolean))]
+      if (!eventIds.length) return
+
+      const result = await fetchInteractions(eventIds, {
+        viewerPubkey: this.identity?.pubkey || '',
+        timeoutMs: 6500,
+      })
+
+      if (!result.ok) return
+
+      const replyPubkeys = Object.values(result.interactions)
+        .flatMap((interaction) => interaction.replies || [])
+        .map((reply) => reply.pubkey)
+        .filter(Boolean)
+
+      await this.hydrateAuthorProfiles([...new Set(replyPubkeys)])
+
+      this.interactionsByEventId = {
+        ...this.interactionsByEventId,
+        ...result.interactions,
+      }
+    },
+
+    interactionForPost(post) {
+      const eventId = post?.nostr?.id
+      if (!eventId) return null
+      return {
+        ...(this.interactionsByEventId[eventId] || { count: 0, likedByMe: false, replies: [] }),
+        publishing: Boolean(this.publishingInteractions[eventId]),
+      }
+    },
+
+    rootEventForPost(post) {
+      return post?.nostr?.id && post?.nostr?.pubkey
+        ? { id: post.nostr.id, pubkey: post.nostr.pubkey }
+        : null
+    },
+
+    async likePost(post) {
+      const rootEvent = this.rootEventForPost(post)
+      if (!rootEvent) {
+        this.message = 'Only relay posts can be liked on Nostr.'
+        return
+      }
+      if (!this.identity?.pubkey || this.identity.source !== 'nip07') {
+        this.message = 'Login with NIP-07 before publishing Nostr likes.'
+        return
+      }
+      if (this.interactionsByEventId[rootEvent.id]?.likedByMe) return
+
+      const current = this.interactionsByEventId[rootEvent.id] || { count: 0, likedByMe: false, replies: [] }
+      this.interactionsByEventId = {
+        ...this.interactionsByEventId,
+        [rootEvent.id]: { ...current, count: current.count + 1, likedByMe: true },
+      }
+      this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: true }
+
+      const result = await publishReaction(rootEvent, { timeoutMs: 7000 })
+      this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: false }
+
+      if (result.ok) {
+        this.message = 'Like published to Nostr.'
+        await this.refreshInteractionsForPosts([post])
+        this.saveRelayCache()
+        return
+      }
+
+      this.interactionsByEventId = { ...this.interactionsByEventId, [rootEvent.id]: current }
+      this.message = result.error || 'Like could not be published to any relay.'
+    },
+
+    async commentOnPost(post, content) {
+      const rootEvent = this.rootEventForPost(post)
+      const text = String(content || '').trim()
+      if (!rootEvent) {
+        this.message = 'Only relay posts can be commented on Nostr.'
+        return false
+      }
+      if (!text) return false
+      if (!this.identity?.pubkey || this.identity.source !== 'nip07') {
+        this.message = 'Login with NIP-07 before publishing Nostr comments.'
+        return false
+      }
+
+      this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: true }
+      const result = await publishReply(rootEvent, text, { timeoutMs: 7000 })
+      this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: false }
+
+      if (!result.ok) {
+        this.message = result.error || 'Comment could not be published to any relay.'
+        return false
+      }
+
+      const current = this.interactionsByEventId[rootEvent.id] || { count: 0, likedByMe: false, replies: [] }
+      const reply = {
+        id: result.event.id,
+        eventId: rootEvent.id,
+        pubkey: this.identity.pubkey,
+        content: text,
+        createdAt: new Date((result.event.created_at || Date.now() / 1000) * 1000).toISOString(),
+        tags: result.event.tags || [],
+        event: result.event,
+      }
+      this.interactionsByEventId = {
+        ...this.interactionsByEventId,
+        [rootEvent.id]: { ...current, replies: [...(current.replies || []), reply] },
+      }
+      this.message = 'Comment published to Nostr.'
+      await this.refreshInteractionsForPosts([post])
+      this.saveRelayCache()
+      return true
+    },
+
+    replyAuthor(reply) {
+      return this.authorForPubkey(reply?.pubkey || '')
     },
 
     cursorFromEvents(events) {

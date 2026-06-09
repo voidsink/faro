@@ -41,7 +41,11 @@
           :key="post.id"
           :class="{ 'masonry-card': twoColumnFeed }"
           :post="post"
+          :interaction="interactionForPost(post)"
+          :reply-author="replyAuthor"
           :format-date="formatDate"
+          @like-post="$emit('like-post', post)"
+          @comment-post="(content) => $emit('comment-post', post, content)"
         />
       </div>
 
@@ -89,9 +93,17 @@ defineProps({
     type: Function,
     required: true,
   },
+  interactionForPost: {
+    type: Function,
+    default: () => null,
+  },
+  replyAuthor: {
+    type: Function,
+    default: () => ({ name: 'Nostr user', pubkey: '', picture: '' }),
+  },
 })
 
-const emit = defineEmits(['load-more', 'refresh', 'update:twoColumnFeed'])
+const emit = defineEmits(['load-more', 'refresh', 'update:twoColumnFeed', 'like-post', 'comment-post'])
 
 function loadMore(_index, done) {
   emit('load-more', done)
