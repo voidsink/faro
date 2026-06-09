@@ -35,6 +35,14 @@ function isPositiveReaction(event) {
   return content !== '-'
 }
 
+function hashtagsFromText(text) {
+  return uniqueStrings(
+    [...String(text || '').matchAll(/(^|\s)#([\p{L}\p{N}_-]+)/gu)]
+      .map((match) => match[2].toLowerCase())
+      .filter(Boolean),
+  )
+}
+
 function makeSubId() {
   return `faro-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
@@ -275,6 +283,27 @@ export async function fetchVisualFeed(authors, options = {}) {
   }
 }
 
+export function buildMediaPostEvent({ caption = '', mediaUrl, media = {} } = {}) {
+  const cleanCaption = String(caption || '').trim()
+  const cleanUrl = String(mediaUrl || '').trim()
+  const content = [cleanCaption, cleanUrl].filter(Boolean).join(' ')
+  const tags = []
+
+  if (cleanUrl) tags.push(['url', cleanUrl])
+  if (media.sha256) tags.push(['x', media.sha256])
+  if (media.mimeType) tags.push(['m', media.mimeType])
+  if (media.dimensions) tags.push(['dim', media.dimensions])
+  for (const hashtag of hashtagsFromText(cleanCaption)) {
+    tags.push(['t', hashtag])
+  }
+
+  return {
+    kind: 1,
+    content,
+    tags,
+  }
+}
+
 export function buildReactionEvent(rootEvent) {
   return {
     kind: 7,
@@ -369,6 +398,10 @@ export async function publishReaction(rootEvent, options = {}) {
 
 export async function publishReply(rootEvent, content, options = {}) {
   return signAndPublish(buildReplyEvent(rootEvent, content), options)
+}
+
+export async function publishMediaPost({ caption, mediaUrl, media } = {}, options = {}) {
+  return signAndPublish(buildMediaPostEvent({ caption, mediaUrl, media }), options)
 }
 
 export function buildReactionFilter(eventIds, options = {}) {

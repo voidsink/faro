@@ -246,6 +246,30 @@ export const useSessionStore = defineStore('session', {
       return this.localPosts
     },
 
+    addPublishedRelayPost({ event, mediaUrl, media, caption }) {
+      if (!event?.id || !mediaUrl) return null
+      const post = {
+        id: `${event.id}-0`,
+        author: this.authorForPubkey(event.pubkey || this.identity?.pubkey || ''),
+        caption: String(caption || '').trim(),
+        image: mediaUrl,
+        media: media || null,
+        ratio: '1:1',
+        createdAt: new Date((event.created_at || Date.now() / 1000) * 1000).toISOString(),
+        source: 'relay kind 1',
+        nostr: {
+          id: event.id,
+          pubkey: event.pubkey || this.identity?.pubkey || '',
+          kind: event.kind,
+          tags: event.tags || [],
+          created_at: event.created_at,
+        },
+      }
+      this.relayPosts = [post, ...this.relayPosts.filter((item) => item.id !== post.id)].sort(newestFirst)
+      this.saveRelayCache()
+      return post
+    },
+
     clearPostCache() {
       clearLocalPosts()
       this.localPosts = []

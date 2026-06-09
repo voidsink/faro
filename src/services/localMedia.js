@@ -87,6 +87,75 @@ function dataUrlBytesApprox(dataUrl) {
   return Math.max(0, Math.floor((payload.length * 3) / 4) - padding)
 }
 
+function canvasToBlob(canvas, type, quality) {
+  if (typeof canvas.toBlob === 'function') {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) resolve(blob)
+          else reject(new Error('Could not encode selected image'))
+        },
+        type,
+        quality,
+      )
+    })
+  }
+
+  const dataUrl = canvas.toDataURL(type, quality)
+  const payload = dataUrl.slice(dataUrl.indexOf(',') + 1)
+  const bytes = Uint8Array.from(atob(payload), (char) => char.charCodeAt(0))
+  return Promise.resolve(new Blob([bytes], { type }))
+}
+
+export async function blobToSha256Hex(blob) {
+  if (!blob?.arrayBuffer) {
+    throw new Error('Blob bytes are not available')
+  }
+  if (!globalThis.crypto?.subtle?.digest) {
+    throw new Error('WebCrypto SHA-256 is not available')
+  }
+
+  const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+export async function blobToDataUrl(blob) {
+  const mimeType = blob?.type || 'application/octet-stream'
+
+  if (globalThis.FileReader) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = () => reject(new Error('Could not read processed image bytes'))
+      reader.readAsDataURL(blob)
+    })
+  }
+
+  if (blob?.arrayBuffer && typeof Buffer !== 'undefined') {
+    const base64 = Buffer.from(await blob.arrayBuffer()).toString('base64')
+    return `data:${mimeType};base64,${base64}`
+  }
+
+  throw new Error('Could not create image preview data URL')
+}
+
+export async function mediaMetadataFromBlob(blob, { width, height, ratioKey = '1:1' } = {}) {
+  const safeWidth = Number(width) || 0
+  const safeHeight = Number(height) || 0
+  const mimeType = blob?.type || 'application/octet-stream'
+
+  return {
+    blob,
+    mimeType,
+    sha256: await blobToSha256Hex(blob),
+    width: safeWidth,
+    height: safeHeight,
+    dimensions: `${safeWidth}x${safeHeight}`,
+    ratioKey: ASPECT_RATIOS[ratioKey] ? ratioKey : '1:1',
+    bytes: blob?.size || 0,
+  }
+}
+
 export function estimateLocalStorageBytes(value) {
   try {
     const text = typeof value === 'string' ? value : JSON.stringify(value)
@@ -126,13 +195,20 @@ export async function processImageFile(file, ratioKey = '1:1') {
   canvas.height = output.height
   context.drawImage(image, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, output.width, output.height)
 
-  const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY)
+  const blob = await canvasToBlob(canvas, 'image/jpeg', JPEG_QUALITY)
+  const dataUrl = await blobToDataUrl(blob)
+  const metadata = await mediaMetadataFromBlob(blob, {
+    width: output.width,
+    height: output.height,
+    ratioKey,
+  })
 
   return {
+    ...metadata,
     dataUrl,
     width: output.width,
     height: output.height,
-    ratioKey: ASPECT_RATIOS[ratioKey] ? ratioKey : '1:1',
+    ratioKey: metadata.ratioKey,
     bytesApprox: dataUrlBytesApprox(dataUrl),
   }
 }

@@ -171,14 +171,24 @@
             <q-stepper-navigation class="stepper-nav row justify-end q-gutter-sm q-pb-none">
               <q-btn flat no-caps label="Back" @click="step = 3" />
               <q-btn
+                flat
+                color="dark"
+                no-caps
+                icon="save"
+                label="Save locally"
+                :loading="publishing && publishMode === 'local'"
+                :disable="!canSaveLocally"
+                @click="saveLocalPost"
+              />
+              <q-btn
                 unelevated
                 color="dark"
                 no-caps
                 icon="send"
-                label="Post locally"
-                :loading="publishing"
-                :disable="!canPublish"
-                @click="publishPost"
+                label="Publish to Nostr"
+                :loading="publishing && publishMode === 'nostr'"
+                :disable="!canPublishToNostr"
+                @click="publishNostrPost"
               />
             </q-stepper-navigation>
           </q-step>
@@ -196,6 +206,8 @@ import {
   ASPECT_RATIOS,
   processImageFile,
 } from 'src/services/localMedia'
+import { loadBlossomServer, uploadBlobToBlossom } from 'src/services/blossom'
+import { publishMediaPost } from 'src/services/nostrRelay'
 import { useSessionStore } from 'src/stores/session-store'
 
 const router = useRouter()
@@ -205,10 +217,12 @@ const { identity, displayName } = storeToRefs(session)
 const step = ref(1)
 const caption = ref('')
 const imagePreview = ref('')
+const processedMedia = ref(null)
 const selectedRatio = ref('1:1')
 const selectedFile = ref(null)
 const message = ref('')
 const publishing = ref(false)
+const publishMode = ref('')
 const galleryInput = ref(null)
 const cameraInput = ref(null)
 
@@ -218,7 +232,8 @@ const previewFrameStyle = computed(() => ({
   aspectRatio: String(previewRatio.value),
   '--preview-ratio': previewRatio.value,
 }))
-const canPublish = computed(() => Boolean(identity.value && imagePreview.value && !publishing.value))
+const canSaveLocally = computed(() => Boolean(identity.value && imagePreview.value && !publishing.value))
+const canPublishToNostr = computed(() => Boolean(identity.value?.source === 'nip07' && processedMedia.value?.blob && !publishing.value))
 
 onMounted(() => {
   session.init()
@@ -253,8 +268,11 @@ async function processSelectedImage() {
   if (!selectedFile.value) return
   try {
     const processed = await processImageFile(selectedFile.value, selectedRatio.value)
+    processedMedia.value = processed
     imagePreview.value = processed.dataUrl
   } catch {
+    processedMedia.value = null
+    imagePreview.value = ''
     message.value = 'Could not process that image.'
   }
 }
@@ -264,23 +282,25 @@ function ratioToNumber(ratio) {
   return value.width / value.height
 }
 
-async function publishPost() {
+async function saveLocalPost() {
   if (!identity.value) {
-    message.value = 'Login or create a local identity before posting.'
+    message.value = 'Login or create a local identity before saving locally.'
     return
   }
   if (!imagePreview.value) {
-    message.value = 'Choose an image before posting.'
+    message.value = 'Choose an image before saving.'
     return
   }
 
   publishing.value = true
+  publishMode.value = 'local'
   try {
     const nextPost = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       author: { name: displayName.value, pubkey: identity.value.pubkey },
       caption: caption.value.trim(),
-      image: imagePreview.value,
+      image: processedMedia.value?.dataUrl || imagePreview.value,
+      media: serializableMedia(processedMedia.value),
       ratio: selectedRatio.value,
       createdAt: new Date().toISOString(),
       source: 'local kind 1 draft',
@@ -291,7 +311,84 @@ async function publishPost() {
     message.value = 'Could not save locally. Try a smaller image.'
   } finally {
     publishing.value = false
+    publishMode.value = ''
   }
+}
+
+function serializableMedia(media) {
+  return media
+    ? {
+        mimeType: media.mimeType,
+        sha256: media.sha256,
+        width: media.width,
+        height: media.height,
+        dimensions: media.dimensions,
+        bytes: media.bytes,
+      }
+    : null
+}
+
+async function publishNostrPost() {
+  if (!identity.value || identity.value.source !== 'nip07') {
+    message.value = 'Login with NIP-07 before publishing to Nostr.'
+    return
+  }
+  if (!processedMedia.value?.blob) {
+    message.value = 'Choose an image before publishing.'
+    return
+  }
+
+  const blossomServer = loadBlossomServer()
+  if (!blossomServer) {
+    message.value = 'Configure a Blossom media server in Settings before publishing to Nostr.'
+    return
+  }
+
+  publishing.value = true
+  publishMode.value = 'nostr'
+  message.value = 'Uploading image to Blossom…'
+
+  try {
+    const uploadResult = await uploadBlobToBlossom(processedMedia.value, { serverUrl: blossomServer })
+    if (!uploadResult.ok) {
+      message.value = uploadResult.error || 'Blossom upload failed.'
+      return
+    }
+
+    message.value = 'Signing and publishing Nostr post…'
+    const publishResult = await publishMediaPost({
+      caption: caption.value.trim(),
+      mediaUrl: uploadResult.url,
+      media: uploadResult.metadata,
+    })
+
+    if (!publishResult.ok) {
+      message.value = publishResult.error || 'Post could not be published to any relay.'
+      return
+    }
+
+    session.addPublishedRelayPost({
+      event: publishResult.event,
+      mediaUrl: uploadResult.url,
+      media: uploadResult.metadata,
+      caption: caption.value.trim(),
+    })
+    session.message = relayPublishMessage(publishResult.results)
+    await router.push('/')
+  } catch (error) {
+    message.value = error?.message || 'Nostr publish failed.'
+  } finally {
+    publishing.value = false
+    publishMode.value = ''
+  }
+}
+
+function relayPublishMessage(results = []) {
+  const okCount = results.filter((result) => result.ok).length
+  const total = results.length
+  return okCount === total
+    ? `Post published to ${okCount} relays.`
+    : `Post published to ${okCount}/${total} relays. Some relays rejected or timed out.`
 }
 </script>
 

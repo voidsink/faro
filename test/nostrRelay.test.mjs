@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildMediaPostEvent,
   buildReactionEvent,
   buildReplyEvent,
   buildReplyFilter,
@@ -78,6 +79,32 @@ test('mapReplyEvents keeps only replies for the target and normalizes author ref
   ])
 })
 
+
+test('buildMediaPostEvent creates a kind 1 media post with Blossom metadata tags', () => {
+  assert.deepEqual(
+    buildMediaPostEvent({
+      caption: '  Golden hour #Faro #nostr  ',
+      mediaUrl: 'https://blossom.example.com/abc.jpg',
+      media: {
+        sha256: 'a'.repeat(64),
+        mimeType: 'image/jpeg',
+        dimensions: '1080x1350',
+      },
+    }),
+    {
+      kind: 1,
+      content: 'Golden hour #Faro #nostr https://blossom.example.com/abc.jpg',
+      tags: [
+        ['url', 'https://blossom.example.com/abc.jpg'],
+        ['x', 'a'.repeat(64)],
+        ['m', 'image/jpeg'],
+        ['dim', '1080x1350'],
+        ['t', 'faro'],
+        ['t', 'nostr'],
+      ],
+    },
+  )
+})
 
 test('buildReactionEvent creates a NIP-25 like event for a visual post', () => {
   assert.deepEqual(buildReactionEvent(rootEvent), {
