@@ -1,8 +1,11 @@
 export const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
+  'wss://relay.primal.net',
   'wss://relay.nostr.band',
 ]
+export const RELAYS_STORAGE_KEY = 'faro-relays'
+
 
 const DEFAULT_TIMEOUT_MS = 8000
 const MAX_VISUAL_EVENTS = 80
@@ -14,8 +17,44 @@ function uniqueStrings(values) {
   return [...new Set((values || []).filter(Boolean))]
 }
 
-function normalizeRelays(relays = DEFAULT_RELAYS) {
-  return uniqueStrings(relays).filter((relay) => /^wss?:\/\//i.test(relay))
+export function normalizeRelays(relays = DEFAULT_RELAYS) {
+  const normalized = uniqueStrings(relays)
+    .map((relay) => String(relay || '').trim().replace(/\/+$/, ''))
+    .filter((relay) => /^wss?:\/\//i.test(relay))
+  return normalized.length ? normalized : [...DEFAULT_RELAYS]
+}
+
+export function parseRelayList(value) {
+  if (Array.isArray(value)) return normalizeRelays(value)
+  return normalizeRelays(
+    String(value || '')
+      .split(/[\n, ]+/)
+      .map((relay) => relay.trim())
+      .filter(Boolean),
+  )
+}
+
+export function loadRelays() {
+  try {
+    const stored = localStorage.getItem(RELAYS_STORAGE_KEY)
+    return stored ? parseRelayList(JSON.parse(stored)) : [...DEFAULT_RELAYS]
+  } catch {
+    return [...DEFAULT_RELAYS]
+  }
+}
+
+export function saveRelays(relays) {
+  const normalized = parseRelayList(relays)
+  try {
+    localStorage.setItem(RELAYS_STORAGE_KEY, JSON.stringify(normalized))
+  } catch {
+    // Ignore storage failures; caller can still use returned relays in memory.
+  }
+  return normalized
+}
+
+export function relaysForOptions(options = {}) {
+  return normalizeRelays(options.relays || loadRelays())
 }
 
 function isValidPubkey(pubkey) {
@@ -204,7 +243,7 @@ export async function fetchProfile(pubkey, options = {}) {
 
   try {
     const events = await requestEvents({
-      relays: options.relays || DEFAULT_RELAYS,
+      relays: relaysForOptions(options),
       timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
       filters: [{ kinds: [0], authors: [pubkey], limit: 1 }],
     })
@@ -229,7 +268,7 @@ export async function fetchFollowing(pubkey, options = {}) {
 
   try {
     const events = await requestEvents({
-      relays: options.relays || DEFAULT_RELAYS,
+      relays: relaysForOptions(options),
       timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
       filters: [{ kinds: [3], authors: [pubkey], limit: 1 }],
     })
@@ -244,11 +283,20 @@ export async function fetchFollowing(pubkey, options = {}) {
           .filter((tag) => tag[0] === 'p' && isValidPubkey(tag[1]))
           .map((tag) => tag[1]),
       ),
+      relayHints: relayHintsFromFollowingEvent(event),
       event,
     }
   } catch (error) {
     return { ...fallback, error: error?.message || 'Following fetch failed' }
   }
+}
+
+export function relayHintsFromFollowingEvent(event) {
+  return normalizeRelays(
+    (event?.tags || [])
+      .filter((tag) => tag[0] === 'p' && tag[2])
+      .map((tag) => tag[2]),
+  )
 }
 
 export async function fetchVisualFeed(authors, options = {}) {
@@ -259,7 +307,7 @@ export async function fetchVisualFeed(authors, options = {}) {
 
   try {
     const events = await requestEvents({
-      relays: options.relays || DEFAULT_RELAYS,
+      relays: relaysForOptions(options),
       timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
       filters: [
         {
@@ -321,7 +369,7 @@ export function buildReplyEvent(rootEvent, content) {
 }
 
 export async function publishEvent(event, options = {}) {
-  const relayUrls = normalizeRelays(options.relays || DEFAULT_RELAYS)
+  const relayUrls = relaysForOptions(options)
   const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS
   const fallback = { ok: false, event, results: [], error: null }
 
@@ -456,12 +504,12 @@ export async function fetchInteractions(eventIds, options = {}) {
   try {
     const [reactionEvents, replyEvents] = await Promise.all([
       requestEvents({
-        relays: options.relays || DEFAULT_RELAYS,
+        relays: relaysForOptions(options),
         timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
         filters: [buildReactionFilter(ids, { limit: options.reactionLimit || 300 })],
       }),
       requestEvents({
-        relays: options.relays || DEFAULT_RELAYS,
+        relays: relaysForOptions(options),
         timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
         filters: [buildReplyFilter(ids, { limit: options.replyLimit || 300 })],
       }),

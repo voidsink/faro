@@ -1,4 +1,8 @@
 export const BLOSSOM_SERVER_STORAGE_KEY = 'faro-blossom-server'
+export const DEFAULT_BLOSSOM_SERVERS = [
+  'https://cdn.nostrverse.net',
+  'https://cdn.satellite.earth',
+]
 
 function nowSeconds() {
   return Math.floor(Date.now() / 1000)
@@ -25,20 +29,30 @@ export function buildBlossomUploadUrl(serverUrl) {
 }
 
 export function buildBlossomAuthEvent({ uploadUrl, sha256, mimeType, size, now = nowSeconds } = {}) {
+  const serverHost = hostFromUrl(uploadUrl)
   const tags = [
-    ['u', uploadUrl],
-    ['method', 'PUT'],
+    ['t', 'upload'],
+    ['expiration', String(now() + 10 * 60)],
   ]
 
   if (sha256) tags.push(['x', sha256])
+  if (serverHost) tags.push(['server', serverHost])
   if (mimeType) tags.push(['m', mimeType])
   if (Number.isFinite(Number(size))) tags.push(['size', String(size)])
 
   return {
-    kind: 27235,
+    kind: 24242,
     created_at: now(),
-    content: '',
+    content: 'Upload Blob',
     tags,
+  }
+}
+
+function hostFromUrl(value) {
+  try {
+    return new URL(value).host.toLowerCase()
+  } catch {
+    return ''
   }
 }
 
@@ -62,7 +76,12 @@ export function saveBlossomServer(serverUrl) {
 }
 
 function encodeAuthorization(signedEvent) {
-  return `Nostr ${btoa(JSON.stringify(signedEvent))}`
+  const json = JSON.stringify(signedEvent)
+  const base64 = btoa(unescape(encodeURIComponent(json)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '')
+  return `Nostr ${base64}`
 }
 
 function extractUploadedUrl(response, serverUrl, sha256) {
@@ -100,12 +119,15 @@ export async function uploadBlobToBlossom(media, { serverUrl, signer = globalThi
       size: media.bytes || media.blob.size,
     })
     const signedAuthEvent = await signer.signEvent(authEvent)
+    const headers = {
+      Authorization: encodeAuthorization(signedAuthEvent),
+      'Content-Type': media.mimeType || media.blob.type || 'application/octet-stream',
+    }
+    if (media.sha256) headers['X-SHA-256'] = media.sha256
+
     const response = await fetchImpl(uploadUrl, {
       method: 'PUT',
-      headers: {
-        Authorization: encodeAuthorization(signedAuthEvent),
-        'Content-Type': media.mimeType || media.blob.type || 'application/octet-stream',
-      },
+      headers,
       body: media.blob,
     })
 

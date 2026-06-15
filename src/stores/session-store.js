@@ -304,7 +304,10 @@ export const useSessionStore = defineStore('session', {
         }
 
         const authors = [this.identity.pubkey, ...this.following].slice(0, 20)
-        const visualResult = await fetchVisualFeed(authors, { limit: FEED_PAGE_SIZE })
+        const visualResult = await fetchVisualFeed(authors, {
+          limit: FEED_PAGE_SIZE,
+          relays: followingResult.relayHints,
+        })
 
         if (visualResult.ok) {
           const events = visualResult.events
@@ -325,7 +328,7 @@ export const useSessionStore = defineStore('session', {
         if (!silent) {
           this.message =
             refreshed || this.following.length || this.relayPosts.length
-              ? 'Nostr refresh complete.'
+              ? `Nostr refresh complete: ${this.following.length} follows, ${this.relayPosts.length} visual posts.`
               : 'Relay data was unavailable. Showing cached data if available.'
         }
       } catch {
