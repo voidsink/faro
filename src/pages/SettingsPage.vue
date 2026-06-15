@@ -31,7 +31,7 @@
                 class="q-mt-sm"
                 label="Blossom server URL"
                 placeholder="https://cdn.nostrverse.net"
-                hint="For testing, try cdn.nostrverse.net. You can change this to any Blossom server you trust."
+                hint="For browser testing, use a server with CORS enabled. bouquet.slidestr.net currently fails browser CORS; try cdn.nostrverse.net, cdn.satellite.earth, or blssm.us."
               />
               <div class="row q-gutter-xs q-mt-sm">
                 <q-btn

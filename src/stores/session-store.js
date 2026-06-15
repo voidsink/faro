@@ -303,7 +303,7 @@ export const useSessionStore = defineStore('session', {
           refreshed = true
         }
 
-        const authors = [this.identity.pubkey, ...this.following].slice(0, 20)
+        const authors = [this.identity.pubkey, ...this.following].slice(0, 100)
         const visualResult = await fetchVisualFeed(authors, {
           limit: FEED_PAGE_SIZE,
           relays: followingResult.relayHints,
@@ -349,7 +349,7 @@ export const useSessionStore = defineStore('session', {
 
       this.loadingMoreRelayPosts = true
       try {
-        const authors = [this.identity.pubkey, ...this.following].slice(0, 20)
+        const authors = [this.identity.pubkey, ...this.following].slice(0, 100)
         const visualResult = await fetchVisualFeed(authors, {
           limit: FEED_PAGE_SIZE,
           until,

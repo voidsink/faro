@@ -2,6 +2,7 @@ export const BLOSSOM_SERVER_STORAGE_KEY = 'faro-blossom-server'
 export const DEFAULT_BLOSSOM_SERVERS = [
   'https://cdn.nostrverse.net',
   'https://cdn.satellite.earth',
+  'https://blssm.us',
 ]
 
 function nowSeconds() {

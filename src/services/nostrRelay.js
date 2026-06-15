@@ -54,7 +54,9 @@ export function saveRelays(relays) {
 }
 
 export function relaysForOptions(options = {}) {
-  return normalizeRelays(options.relays || loadRelays())
+  const configured = loadRelays()
+  const hinted = options.relays ? normalizeRelays(options.relays) : []
+  return normalizeRelays([...configured, ...hinted, ...DEFAULT_RELAYS])
 }
 
 function isValidPubkey(pubkey) {
@@ -306,25 +308,41 @@ export async function fetchVisualFeed(authors, options = {}) {
   if (!authorList.length) return { ...fallback, error: 'No valid authors' }
 
   try {
-    const events = await requestEvents({
-      relays: relaysForOptions(options),
-      timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
-      filters: [
-        {
-          kinds: [1],
-          authors: authorList,
-          limit: options.limit || MAX_VISUAL_EVENTS,
-          until: options.until || nowSeconds(),
-        },
-      ],
-    })
+    const chunkSize = options.authorChunkSize || 20
+    const authorChunks = []
+    for (let index = 0; index < authorList.length; index += chunkSize) {
+      authorChunks.push(authorList.slice(index, index + chunkSize))
+    }
+    const perChunkLimit = Math.max(options.limit || MAX_VISUAL_EVENTS, 20)
+    const relayEvents = await Promise.all(
+      authorChunks.map((chunk) =>
+        requestEvents({
+          relays: relaysForOptions(options),
+          timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
+          filters: [
+            {
+              kinds: [1],
+              authors: chunk,
+              limit: perChunkLimit,
+              until: options.until || nowSeconds(),
+            },
+          ],
+        }),
+      ),
+    )
+    const eventsById = new Map()
+    for (const event of relayEvents.flat()) {
+      eventsById.set(event.id, event)
+    }
 
     return {
       ...fallback,
       ok: true,
-      events: events
+      events: [...eventsById.values()]
+        .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
         .map((event) => ({ ...event, imageUrls: extractImageUrls(event) }))
-        .filter((event) => event.imageUrls.length),
+        .filter((event) => event.imageUrls.length)
+        .slice(0, options.limit || MAX_VISUAL_EVENTS),
     }
   } catch (error) {
     return { ...fallback, error: error?.message || 'Visual feed fetch failed' }
