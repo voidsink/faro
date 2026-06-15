@@ -227,11 +227,19 @@ function publishComment() {
 }
 
 .post-carousel {
-  height: min(72vh, 640px);
+  height: auto;
+}
+
+.post-carousel :deep(.q-carousel__slide) {
+  min-height: 0;
+}
+
+.post-carousel :deep(.q-carousel__slides-container) {
+  height: auto;
 }
 
 .post-carousel .post-image {
-  max-height: min(72vh, 640px);
+  max-height: none;
 }
 
 .post-caption {
