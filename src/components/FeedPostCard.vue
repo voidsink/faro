@@ -20,13 +20,25 @@
       </q-item-section>
     </q-item>
 
-    <img
+    <q-img
       :src="post.image"
       :alt="post.caption || 'Visual post image'"
       loading="lazy"
-      decoding="async"
+      fit="contain"
       class="post-image block full-width bg-grey-1"
-    />
+    >
+      <template #loading>
+        <div class="absolute-full flex flex-center bg-grey-1">
+          <q-spinner-dots color="primary" size="28px" />
+        </div>
+      </template>
+      <template #error>
+        <div class="absolute-full flex flex-center column text-blue-grey-5 q-gutter-xs bg-grey-1">
+          <q-icon name="broken_image" size="28px" />
+          <span class="text-caption">Image unavailable</span>
+        </div>
+      </template>
+    </q-img>
 
     <q-card-actions class="post-actions row items-center justify-between q-px-sm q-py-xs">
       <div class="row items-center q-gutter-xs">
@@ -193,8 +205,7 @@ function publishComment() {
 }
 
 .post-image {
-  height: auto;
-  object-fit: contain;
+  min-height: 220px;
 }
 
 .post-caption {

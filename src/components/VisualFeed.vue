@@ -25,12 +25,7 @@
       </div>
     </div>
 
-    <q-infinite-scroll
-      v-if="posts.length"
-      :disable="!hasMore"
-      :offset="700"
-      @load="loadMore"
-    >
+    <q-infinite-scroll v-if="posts.length" :disable="!hasMore" :offset="700" @load="loadMore">
       <div
         class="q-mt-md"
         :class="twoColumnFeed ? 'masonry' : 'column q-gutter-y-md'"
@@ -47,6 +42,10 @@
           @like-post="$emit('like-post', post)"
           @comment-post="(content) => $emit('comment-post', post, content)"
         />
+      </div>
+
+      <div v-if="!hasMore" class="text-center text-caption text-blue-grey-5 q-py-md">
+        Caught up for now.
       </div>
 
       <template #loading>
