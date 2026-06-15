@@ -381,7 +381,7 @@ export const useSessionStore = defineStore('session', {
         this.relayPosts = this.mergeRelayPosts(nextPosts)
         await this.refreshInteractionsForPosts(nextPosts)
         this.relayCursor = this.cursorFromEvents(events) || this.cursorFromPosts(this.relayPosts)
-        this.hasMoreRelayPosts = events.length >= FEED_PAGE_SIZE && nextPosts.length > 0
+        this.hasMoreRelayPosts = events.length > 0 && nextPosts.length > 0
         this.saveRelayCache()
       } finally {
         this.loadingMoreRelayPosts = false
