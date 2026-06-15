@@ -22,32 +22,37 @@
             <q-item-section>
               <q-item-label>Media storage</q-item-label>
               <q-item-label caption>
-                Blossom stores the image bytes. Nostr relays store the signed post that points to them.
+                Blossom stores image bytes. Faro tries servers in order, so keep 2–3 CORS-friendly servers for redundancy.
               </q-item-label>
               <q-input
-                v-model="draftBlossomServer"
+                v-model="draftBlossomServers"
                 outlined
                 dense
-                class="q-mt-sm"
-                label="Blossom server URL"
+                autogrow
+                class="q-mt-sm relay-input"
+                label="Blossom server URLs"
                 placeholder="https://cdn.nostrverse.net"
-                hint="For browser testing, use a server with CORS enabled. bouquet.slidestr.net currently fails browser CORS; try cdn.nostrverse.net, cdn.satellite.earth, or blssm.us."
+                hint="One per line or comma-separated. bouquet.slidestr.net currently fails browser CORS."
               />
               <div class="row q-gutter-xs q-mt-sm">
-                <q-btn
-                  v-for="server in defaultBlossomServers"
-                  :key="server"
-                  flat
-                  dense
-                  no-caps
-                  color="dark"
-                  :label="server.replace('https://', '')"
-                  @click="draftBlossomServer = server"
-                />
+                <q-btn-dropdown flat dense no-caps color="dark" label="Add default server">
+                  <q-list dense>
+                    <q-item
+                      v-for="server in defaultBlossomServers"
+                      :key="server"
+                      clickable
+                      v-close-popup
+                      @click="addDefaultBlossomServer(server)"
+                    >
+                      <q-item-section>{{ server.replace('https://', '') }}</q-item-section>
+                    </q-item>
+                  </q-list>
+                </q-btn-dropdown>
+                <q-btn flat dense no-caps color="dark" label="Reset defaults" @click="resetBlossomServers" />
               </div>
             </q-item-section>
             <q-item-section side>
-              <q-btn unelevated dense no-caps color="dark" label="Save" @click="saveServer" />
+              <q-btn unelevated dense no-caps color="dark" label="Save" @click="saveServers" />
             </q-item-section>
           </q-item>
 
@@ -84,7 +89,7 @@
             </q-item-section>
             <q-item-section>
               <q-item-label>Notifications</q-item-label>
-              <q-item-label caption>Reaction, reply, and relay activity settings.</q-item-label>
+              <q-item-label caption>Next step: keep a lightweight subscription open and show “X new posts” instead of auto-jumping the feed.</q-item-label>
             </q-item-section>
             <q-item-section side>
               <q-toggle v-model="notificationsEnabled" disable />
@@ -100,39 +105,44 @@
 import { onMounted, ref } from 'vue'
 import {
   DEFAULT_BLOSSOM_SERVERS,
-  loadBlossomServer,
-  normalizeBlossomServerUrl,
-  saveBlossomServer,
+  loadBlossomServers,
+  normalizeBlossomServers,
+  saveBlossomServers,
 } from 'src/services/blossom'
 import { DEFAULT_RELAYS, loadRelays, saveRelays } from 'src/services/nostrRelay'
 
 const defaultBlossomServers = DEFAULT_BLOSSOM_SERVERS
-const draftBlossomServer = ref('')
+const draftBlossomServers = ref('')
 const draftRelays = ref('')
 const message = ref('')
 const notificationsEnabled = ref(false)
 
 onMounted(() => {
-  draftBlossomServer.value = loadBlossomServer()
+  draftBlossomServers.value = loadBlossomServers().join('\n')
   draftRelays.value = loadRelays().join('\n')
 })
 
-function saveServer() {
-  const raw = draftBlossomServer.value.trim()
-  const normalized = saveBlossomServer(raw)
-  draftBlossomServer.value = normalized
+function splitLines(value) {
+  return String(value || '')
+    .split(/[\n, ]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
 
-  if (!raw) {
-    message.value = 'Blossom server cleared. Publishing will use local-save fallback only.'
-    return
-  }
+function saveServers() {
+  const servers = saveBlossomServers(splitLines(draftBlossomServers.value))
+  draftBlossomServers.value = servers.join('\n')
+  message.value = `Blossom settings saved: ${servers.length} server${servers.length === 1 ? '' : 's'}.`
+}
 
-  if (!normalizeBlossomServerUrl(raw)) {
-    message.value = 'Enter a valid HTTP(S) Blossom server URL.'
-    return
-  }
+function addDefaultBlossomServer(server) {
+  const servers = normalizeBlossomServers([...splitLines(draftBlossomServers.value), server])
+  draftBlossomServers.value = servers.join('\n')
+}
 
-  message.value = `Blossom server saved: ${normalized}`
+function resetBlossomServers() {
+  draftBlossomServers.value = DEFAULT_BLOSSOM_SERVERS.join('\n')
+  saveServers()
 }
 
 function saveRelaySettings() {

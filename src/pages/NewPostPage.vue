@@ -206,7 +206,7 @@ import {
   ASPECT_RATIOS,
   processImageFile,
 } from 'src/services/localMedia'
-import { loadBlossomServer, uploadBlobToBlossom } from 'src/services/blossom'
+import { loadBlossomServers, uploadBlobToBlossom } from 'src/services/blossom'
 import { publishMediaPost } from 'src/services/nostrRelay'
 import { useSessionStore } from 'src/stores/session-store'
 
@@ -338,8 +338,8 @@ async function publishNostrPost() {
     return
   }
 
-  const blossomServer = loadBlossomServer()
-  if (!blossomServer) {
+  const blossomServers = loadBlossomServers()
+  if (!blossomServers.length) {
     message.value = 'Configure a Blossom media server in Settings before publishing to Nostr.'
     return
   }
@@ -349,7 +349,7 @@ async function publishNostrPost() {
   message.value = 'Uploading image to Blossom…'
 
   try {
-    const uploadResult = await uploadBlobToBlossom(processedMedia.value, { serverUrl: blossomServer })
+    const uploadResult = await uploadBlobToBlossom(processedMedia.value, { serverUrls: blossomServers })
     if (!uploadResult.ok) {
       message.value = uploadResult.error || 'Blossom upload failed.'
       return

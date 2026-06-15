@@ -58,22 +58,50 @@ function hostFromUrl(value) {
 }
 
 export function loadBlossomServer() {
+  return loadBlossomServers()[0] || DEFAULT_BLOSSOM_SERVERS[0]
+}
+
+export function loadBlossomServers() {
   try {
-    return normalizeBlossomServerUrl(localStorage.getItem(BLOSSOM_SERVER_STORAGE_KEY))
+    const stored = localStorage.getItem(BLOSSOM_SERVER_STORAGE_KEY)
+    if (!stored) return [DEFAULT_BLOSSOM_SERVERS[0]]
+
+    try {
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed)) return normalizeBlossomServers(parsed)
+    } catch {
+      // Legacy single-string value.
+    }
+
+    return normalizeBlossomServers([stored])
   } catch {
-    return ''
+    return [DEFAULT_BLOSSOM_SERVERS[0]]
   }
 }
 
 export function saveBlossomServer(serverUrl) {
-  const normalized = normalizeBlossomServerUrl(serverUrl)
+  return saveBlossomServers(serverUrl ? [serverUrl] : [])[0] || ''
+}
+
+export function normalizeBlossomServers(values) {
+  const normalized = [...new Set((values || []).map(normalizeBlossomServerUrl).filter(Boolean))]
+  return normalized.length ? normalized : [DEFAULT_BLOSSOM_SERVERS[0]]
+}
+
+export function saveBlossomServers(serverUrls) {
+  const normalized = normalizeBlossomServers(serverUrls)
   try {
-    if (normalized) localStorage.setItem(BLOSSOM_SERVER_STORAGE_KEY, normalized)
-    else localStorage.removeItem(BLOSSOM_SERVER_STORAGE_KEY)
+    localStorage.setItem(BLOSSOM_SERVER_STORAGE_KEY, JSON.stringify(normalized))
   } catch {
     // Ignore storage failures; caller can still use returned value in memory.
   }
   return normalized
+}
+
+export function addBlossomServer(serverUrl) {
+  const normalized = normalizeBlossomServerUrl(serverUrl)
+  if (!normalized) return loadBlossomServers()
+  return saveBlossomServers([...loadBlossomServers(), normalized])
 }
 
 function encodeAuthorization(signedEvent) {
@@ -98,7 +126,20 @@ function extractUploadedUrl(response, serverUrl, sha256) {
   return fallback
 }
 
-export async function uploadBlobToBlossom(media, { serverUrl, signer = globalThis.window?.nostr, fetchImpl = fetch } = {}) {
+export async function uploadBlobToBlossom(media, { serverUrl, serverUrls, signer = globalThis.window?.nostr, fetchImpl = fetch } = {}) {
+  const servers = normalizeBlossomServers(serverUrls || (serverUrl ? [serverUrl] : loadBlossomServers()))
+  const attempts = []
+
+  for (const server of servers) {
+    const result = await uploadBlobToSingleBlossomServer(media, { serverUrl: server, signer, fetchImpl })
+    attempts.push({ serverUrl: server, ok: result.ok, error: result.error || '' })
+    if (result.ok) return { ...result, attempts }
+  }
+
+  return { ok: false, attempts, error: attempts.map((attempt) => `${attempt.serverUrl}: ${attempt.error}`).join('; ') || 'Blossom upload failed.' }
+}
+
+async function uploadBlobToSingleBlossomServer(media, { serverUrl, signer = globalThis.window?.nostr, fetchImpl = fetch } = {}) {
   const normalizedServer = normalizeBlossomServerUrl(serverUrl)
   const uploadUrl = buildBlossomUploadUrl(normalizedServer)
 

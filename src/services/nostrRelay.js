@@ -1,3 +1,5 @@
+import { SimplePool } from 'nostr-tools/pool'
+
 export const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
@@ -12,6 +14,7 @@ const MAX_VISUAL_EVENTS = 80
 const IMAGE_EXTENSIONS = '(?:jpe?g|png|webp|gif)'
 const URL_PATTERN = /https?:\/\/[^\s<>'"`]+/gi
 const HEX64_PATTERN = /^[0-9a-f]{64}$/i
+const pool = new SimplePool()
 
 function uniqueStrings(values) {
   return [...new Set((values || []).filter(Boolean))]
@@ -84,21 +87,6 @@ function hashtagsFromText(text) {
   )
 }
 
-function makeSubId() {
-  return `faro-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-}
-
-
-function closeSocket(socket) {
-  try {
-    if (socket && socket.readyState <= WebSocket.OPEN) {
-      socket.close()
-    }
-  } catch {
-    // Best-effort cleanup only.
-  }
-}
-
 function cleanUrl(url) {
   return url.replace(/[),.;!?\]}]+$/g, '')
 }
@@ -155,73 +143,18 @@ export function requestEvents({ relays = DEFAULT_RELAYS, filters = [], timeoutMs
   const relayUrls = normalizeRelays(relays)
   const safeFilters = Array.isArray(filters) ? filters.filter(Boolean) : []
 
-  if (!relayUrls.length || !safeFilters.length || typeof WebSocket === 'undefined') {
+  if (!relayUrls.length || !safeFilters.length) {
     return Promise.resolve([])
   }
 
-  return new Promise((resolve) => {
+  return Promise.all(
+    safeFilters.map((filter) => pool.querySync(relayUrls, filter, { maxWait: timeoutMs })),
+  ).then((results) => {
     const eventsById = new Map()
-    const sockets = []
-    const completedRelays = new Set()
-    const subId = makeSubId()
-    let settled = false
-
-    const finish = () => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      sockets.forEach(closeSocket)
-      resolve([...eventsById.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0)))
+    for (const event of results.flat()) {
+      if (event?.id) eventsById.set(event.id, event)
     }
-
-    const markComplete = (relayUrl) => {
-      completedRelays.add(relayUrl)
-      if (completedRelays.size >= relayUrls.length) finish()
-    }
-
-    const timer = setTimeout(finish, timeoutMs)
-
-    for (const relayUrl of relayUrls) {
-      let socket
-
-      try {
-        socket = new WebSocket(relayUrl)
-      } catch {
-        markComplete(relayUrl)
-        continue
-      }
-
-      sockets.push(socket)
-
-      socket.onopen = () => {
-        socket.send(JSON.stringify(['REQ', subId, ...safeFilters]))
-      }
-
-      socket.onmessage = (message) => {
-        try {
-          const data = JSON.parse(message.data)
-          if (!Array.isArray(data) || data[1] !== subId) return
-
-          if (data[0] === 'EVENT' && data[2]?.id) {
-            eventsById.set(data[2].id, data[2])
-          }
-
-          if (data[0] === 'EOSE') {
-            try {
-              socket.send(JSON.stringify(['CLOSE', subId]))
-            } catch {
-              // Ignore close-send failures.
-            }
-            markComplete(relayUrl)
-          }
-        } catch {
-          // Ignore malformed relay messages.
-        }
-      }
-
-      socket.onerror = () => markComplete(relayUrl)
-      socket.onclose = () => markComplete(relayUrl)
-    }
+    return [...eventsById.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
   })
 }
 
@@ -388,53 +321,18 @@ export function buildReplyEvent(rootEvent, content) {
 
 export async function publishEvent(event, options = {}) {
   const relayUrls = relaysForOptions(options)
-  const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS
   const fallback = { ok: false, event, results: [], error: null }
 
-  if (!event?.id || !relayUrls.length || typeof WebSocket === 'undefined') {
+  if (!event?.id || !relayUrls.length) {
     return { ...fallback, error: 'Cannot publish event in this environment' }
   }
 
-  const results = await Promise.all(
-    relayUrls.map(
-      (relayUrl) =>
-        new Promise((resolve) => {
-          let socket
-          let settled = false
-          const finish = (result) => {
-            if (settled) return
-            settled = true
-            clearTimeout(timer)
-            closeSocket(socket)
-            resolve(result)
-          }
-          const timer = setTimeout(
-            () => finish({ relay: relayUrl, ok: false, message: 'Publish timed out' }),
-            timeoutMs,
-          )
-
-          try {
-            socket = new WebSocket(relayUrl)
-          } catch (error) {
-            finish({ relay: relayUrl, ok: false, message: error?.message || 'Could not open relay' })
-            return
-          }
-
-          socket.onopen = () => socket.send(JSON.stringify(['EVENT', event]))
-          socket.onmessage = (message) => {
-            try {
-              const data = JSON.parse(message.data)
-              if (Array.isArray(data) && data[0] === 'OK' && data[1] === event.id) {
-                finish({ relay: relayUrl, ok: Boolean(data[2]), message: data[3] || '' })
-              }
-            } catch {
-              // Ignore malformed relay messages.
-            }
-          }
-          socket.onerror = () => finish({ relay: relayUrl, ok: false, message: 'Relay connection failed' })
-          socket.onclose = () => finish({ relay: relayUrl, ok: false, message: 'Relay closed before OK' })
-        }),
-    ),
+  const results = await Promise.allSettled(pool.publish(relayUrls, event)).then((settled) =>
+    settled.map((result, index) => ({
+      relay: relayUrls[index],
+      ok: result.status === 'fulfilled',
+      message: result.status === 'fulfilled' ? '' : String(result.reason || 'Publish failed'),
+    })),
   )
 
   return { ok: results.some((result) => result.ok), event, results, error: null }
