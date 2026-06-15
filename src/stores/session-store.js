@@ -114,8 +114,9 @@ export const useSessionStore = defineStore('session', {
       return [...people.values()].filter((person) => person.name && !person.name.includes('…'))
     },
 
-    suggestedProfiles() {
-      return this.namedPeople.slice(0, 5)
+    suggestedProfiles(state) {
+      const excluded = new Set([state.identity?.pubkey, ...state.following].filter(Boolean))
+      return this.namedPeople.filter((person) => !excluded.has(person.pubkey)).slice(0, 5)
     },
 
     storyProfiles() {
