@@ -58,6 +58,13 @@ function newestFirst(a, b) {
   return new Date(b.createdAt) - new Date(a.createdAt)
 }
 
+function postCreatedAtSeconds(post) {
+  const nostrCreatedAt = Number(post?.nostr?.created_at)
+  if (Number.isFinite(nostrCreatedAt)) return nostrCreatedAt
+  const parsed = Math.floor(Date.parse(post?.createdAt || '') / 1000)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 function daysAgoSeconds(days) {
   return Math.floor(Date.now() / 1000) - days * 24 * 60 * 60
 }
@@ -113,7 +120,7 @@ export const useSessionStore = defineStore('session', {
     },
 
     combinedFeed(state) {
-      return [...state.localPosts, ...state.relayPosts].sort(newestFirst)
+      return this.dedupePostsById([...state.localPosts, ...state.relayPosts])
     },
 
     userPosts(state) {
@@ -236,7 +243,7 @@ export const useSessionStore = defineStore('session', {
       this.relayProfile = normalizeProfile(cache.relayProfile || {})
       this.following = Array.isArray(cache.following) ? cache.following : []
       this.followers = Array.isArray(cache.followers) ? cache.followers : []
-      this.relayPosts = Array.isArray(cache.relayPosts) ? cache.relayPosts : []
+      this.relayPosts = this.dedupePostsById(Array.isArray(cache.relayPosts) ? cache.relayPosts : [])
       this.interactionsByEventId = cache.interactionsByEventId || {}
       this.relayCursor = cache.relayCursor || this.cursorFromPosts(this.relayPosts)
       this.hasMoreRelayPosts = Boolean(cache.hasMoreRelayPosts)
@@ -402,11 +409,19 @@ export const useSessionStore = defineStore('session', {
     },
 
     mergeRelayPosts(posts) {
+      return this.dedupePostsById([...this.relayPosts, ...(posts || [])]).slice(0, RELAY_CACHE_LIMIT)
+    },
+
+    dedupePostsById(posts) {
       const postsById = new Map()
-      for (const post of [...this.relayPosts, ...(posts || [])]) {
-        postsById.set(post.id, post)
+      for (const post of posts || []) {
+        if (!post?.id) continue
+        const current = postsById.get(post.id)
+        if (!current || postCreatedAtSeconds(post) >= postCreatedAtSeconds(current)) {
+          postsById.set(post.id, post)
+        }
       }
-      return [...postsById.values()].sort(newestFirst).slice(0, RELAY_CACHE_LIMIT)
+      return [...postsById.values()].sort(newestFirst)
     },
 
     latestRelayPostTimestamp() {
