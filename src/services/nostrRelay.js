@@ -257,6 +257,7 @@ export async function fetchVisualFeed(authors, options = {}) {
               kinds: [1],
               authors: chunk,
               limit: perChunkLimit,
+              since: options.since,
               until: options.until || nowSeconds(),
             },
           ],

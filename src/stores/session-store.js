@@ -18,6 +18,9 @@ const legacyIdentityKey = 'nostr-visual-demo-identity'
 const relayCacheKey = 'faro-relay-cache'
 const genericNames = new Set(['Nostr user', 'NIP-07 user', 'Faro user'])
 const FEED_PAGE_SIZE = 24
+const INITIAL_FEED_LIMIT = 120
+const RELAY_CACHE_LIMIT = 300
+const INITIAL_LOOKBACK_DAYS = 30
 
 function readJson(key, fallback) {
   try {
@@ -45,6 +48,10 @@ function normalizeProfile(profile = {}) {
 
 function newestFirst(a, b) {
   return new Date(b.createdAt) - new Date(a.createdAt)
+}
+
+function daysAgoSeconds(days) {
+  return Math.floor(Date.now() / 1000) - days * 24 * 60 * 60
 }
 
 export const useSessionStore = defineStore('session', {
@@ -232,7 +239,7 @@ export const useSessionStore = defineStore('session', {
           pubkey: this.identity?.pubkey || '',
           following: this.following,
           followers: this.followers,
-          relayPosts: this.relayPosts.slice(0, 80),
+          relayPosts: this.relayPosts.slice(0, RELAY_CACHE_LIMIT),
           interactionsByEventId: this.interactionsByEventId,
           relayCursor: this.relayCursor,
           hasMoreRelayPosts: this.hasMoreRelayPosts,
@@ -305,9 +312,11 @@ export const useSessionStore = defineStore('session', {
         }
 
         const authors = [this.identity.pubkey, ...this.following].slice(0, 100)
+        const latest = this.latestRelayPostTimestamp()
         const visualResult = await fetchVisualFeed(authors, {
-          limit: FEED_PAGE_SIZE,
+          limit: silent && !this.relayPosts.length ? INITIAL_FEED_LIMIT : FEED_PAGE_SIZE,
           relays: followingResult.relayHints,
+          since: !silent && latest ? latest + 1 : daysAgoSeconds(INITIAL_LOOKBACK_DAYS),
         })
 
         if (visualResult.ok) {
@@ -315,10 +324,14 @@ export const useSessionStore = defineStore('session', {
           const pubkeys = [...new Set(events.map((event) => event.pubkey).filter(Boolean))]
           await this.hydrateAuthorProfiles(pubkeys)
 
-          this.relayPosts = this.postsFromVisualEvents(events)
+          const nextPosts = this.postsFromVisualEvents(events)
+          this.relayPosts = silent
+            ? nextPosts
+            : this.mergeRelayPosts(nextPosts)
           await this.refreshInteractionsForPosts(this.relayPosts)
           this.relayCursor = this.cursorFromEvents(events)
-          this.hasMoreRelayPosts = events.length >= FEED_PAGE_SIZE
+            || this.cursorFromPosts(this.relayPosts)
+          this.hasMoreRelayPosts = true
           refreshed = true
         }
 
@@ -365,7 +378,7 @@ export const useSessionStore = defineStore('session', {
 
         const existing = new Set(this.relayPosts.map((post) => post.id))
         const nextPosts = this.postsFromVisualEvents(events).filter((post) => !existing.has(post.id))
-        this.relayPosts = [...this.relayPosts, ...nextPosts].sort(newestFirst)
+        this.relayPosts = this.mergeRelayPosts(nextPosts)
         await this.refreshInteractionsForPosts(nextPosts)
         this.relayCursor = this.cursorFromEvents(events) || this.cursorFromPosts(this.relayPosts)
         this.hasMoreRelayPosts = events.length >= FEED_PAGE_SIZE && nextPosts.length > 0
@@ -373,6 +386,22 @@ export const useSessionStore = defineStore('session', {
       } finally {
         this.loadingMoreRelayPosts = false
       }
+    },
+
+    mergeRelayPosts(posts) {
+      const postsById = new Map()
+      for (const post of [...this.relayPosts, ...(posts || [])]) {
+        postsById.set(post.id, post)
+      }
+      return [...postsById.values()].sort(newestFirst).slice(0, RELAY_CACHE_LIMIT)
+    },
+
+    latestRelayPostTimestamp() {
+      return this.relayPosts.reduce((value, post) => {
+        const createdAt = Math.floor(Date.parse(post.createdAt) / 1000)
+        if (!Number.isFinite(createdAt)) return value
+        return Math.max(value, createdAt)
+      }, 0)
     },
 
     async hydrateAuthorProfiles(pubkeys) {
