@@ -40,6 +40,7 @@
             :posts="combinedFeed"
             :refreshing="refreshing"
             :has-more="hasMoreRelayPosts"
+            :pending-count="pendingRelayEvents.length"
             :format-date="formatDate"
             :interaction-for-post="session.interactionForPost"
             :reply-author="session.replyAuthor"
@@ -47,6 +48,7 @@
             @comment-post="session.commentOnPost"
             @load-more="loadMoreFeed"
             @refresh="session.refreshFromNostr"
+            @show-pending="session.mergePendingRelayPosts"
           />
         </section>
 
@@ -72,6 +74,10 @@
           />
         </aside>
       </div>
+
+      <q-page-sticky position="bottom-right" :offset="[18, 18]">
+        <q-btn fab-mini color="dark" icon="keyboard_arrow_up" aria-label="Back to top" @click="scrollToTop" />
+      </q-page-sticky>
     </div>
   </q-page>
 </template>
@@ -102,6 +108,7 @@ const {
   following,
   localPosts,
   relayPosts,
+  pendingRelayEvents,
   combinedFeed,
   suggestedProfiles,
 } = storeToRefs(session)
@@ -163,6 +170,10 @@ function publishPost() {
 
 function clearPostCache() {
   session.clearPostCache()
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 async function loadMoreFeed(done) {

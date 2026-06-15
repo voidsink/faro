@@ -1,4 +1,6 @@
 import { acceptHMRUpdate, defineStore } from 'pinia'
+import { npubEncode } from 'nostr-tools/nip19'
+import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
 import {
   clearLocalPosts,
   loadLocalPosts,
@@ -11,6 +13,7 @@ import {
   fetchVisualFeed,
   publishReaction,
   publishReply,
+  subscribeVisualFeed,
 } from 'src/services/nostrRelay'
 
 const identityKey = 'faro-identity'
@@ -32,7 +35,12 @@ function readJson(key, fallback) {
 }
 
 function shortKey(pubkey = '') {
-  return pubkey.length > 14 ? `${pubkey.slice(0, 8)}…${pubkey.slice(-6)}` : pubkey
+  try {
+    const npub = npubEncode(pubkey)
+    return `${npub.slice(0, 12)}…${npub.slice(-6)}`
+  } catch {
+    return pubkey.length > 14 ? `${pubkey.slice(0, 8)}…${pubkey.slice(-6)}` : pubkey
+  }
 }
 
 function normalizeProfile(profile = {}) {
@@ -69,6 +77,8 @@ export const useSessionStore = defineStore('session', {
     relayCursor: null,
     hasMoreRelayPosts: false,
     loadingMoreRelayPosts: false,
+    pendingRelayEvents: [],
+    liveFeedSubscription: null,
     publishingInteractions: {},
     message: '',
     refreshing: false,
@@ -168,6 +178,8 @@ export const useSessionStore = defineStore('session', {
       this.followers = []
       this.relayPosts = []
       this.interactionsByEventId = {}
+      this.pendingRelayEvents = []
+      this.closeLiveFeedSubscription()
       this.relayCursor = null
       this.hasMoreRelayPosts = false
       this.loadingMoreRelayPosts = false
@@ -191,9 +203,7 @@ export const useSessionStore = defineStore('session', {
     },
 
     generateIdentity() {
-      const bytes = new Uint8Array(32)
-      crypto.getRandomValues(bytes)
-      const pubkey = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+      const pubkey = getPublicKey(generateSecretKey())
       this.saveIdentity({ name: `Local ${pubkey.slice(0, 4)}`, pubkey, source: 'local-dev' })
     },
 
@@ -208,6 +218,8 @@ export const useSessionStore = defineStore('session', {
       this.followers = []
       this.relayPosts = []
       this.interactionsByEventId = {}
+      this.pendingRelayEvents = []
+      this.closeLiveFeedSubscription()
       this.relayCursor = null
       this.hasMoreRelayPosts = false
       this.loadingMoreRelayPosts = false
@@ -337,6 +349,7 @@ export const useSessionStore = defineStore('session', {
 
         if (refreshed) {
           this.saveRelayCache()
+          this.startLiveFeedSubscription()
         }
 
         if (!silent) {
@@ -404,6 +417,44 @@ export const useSessionStore = defineStore('session', {
       }, 0)
     },
 
+    startLiveFeedSubscription() {
+      this.closeLiveFeedSubscription()
+      const authors = [this.identity?.pubkey, ...this.following].filter(Boolean).slice(0, 100)
+      if (!authors.length) return
+
+      const existing = new Set([
+        ...this.relayPosts.map((post) => post.nostr?.id).filter(Boolean),
+        ...this.pendingRelayEvents.map((event) => event.id),
+      ])
+      this.liveFeedSubscription = subscribeVisualFeed(authors, {
+        since: this.latestRelayPostTimestamp() || Math.floor(Date.now() / 1000),
+        onEvent: (event) => {
+          if (existing.has(event.id)) return
+          existing.add(event.id)
+          this.pendingRelayEvents = [event, ...this.pendingRelayEvents]
+            .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+            .slice(0, 50)
+        },
+      })
+    },
+
+    closeLiveFeedSubscription() {
+      this.liveFeedSubscription?.close?.()
+      this.liveFeedSubscription = null
+    },
+
+    async mergePendingRelayPosts() {
+      const events = this.pendingRelayEvents
+      if (!events.length) return
+      this.pendingRelayEvents = []
+      const pubkeys = [...new Set(events.map((event) => event.pubkey).filter(Boolean))]
+      await this.hydrateAuthorProfiles(pubkeys)
+      const nextPosts = this.postsFromVisualEvents(events)
+      this.relayPosts = this.mergeRelayPosts(nextPosts)
+      await this.refreshInteractionsForPosts(nextPosts)
+      this.saveRelayCache()
+    },
+
     async hydrateAuthorProfiles(pubkeys) {
       const missing = pubkeys.filter((pubkey) => pubkey && !this.authorProfiles[pubkey]).slice(0, 20)
       if (!missing.length) return
@@ -429,12 +480,17 @@ export const useSessionStore = defineStore('session', {
     },
 
     postsFromVisualEvents(events) {
-      return events.flatMap((event) =>
-        event.imageUrls.map((image, imageIndex) => ({
-          id: `${event.id}-${imageIndex}`,
+      return events
+        .filter((event) => event.imageUrls?.length)
+        .map((event) => ({
+          id: event.id,
           author: this.authorForPubkey(event.pubkey),
-          caption: event.content.replace(image, '').trim(),
-          image,
+          caption: event.imageUrls.reduce(
+            (content, image) => content.replace(image, ''),
+            event.content || '',
+          ).trim(),
+          image: event.imageUrls[0],
+          images: event.imageUrls,
           ratio: '1:1',
           createdAt: new Date((event.created_at || Date.now() / 1000) * 1000).toISOString(),
           source: 'relay kind 1',
@@ -445,8 +501,7 @@ export const useSessionStore = defineStore('session', {
             tags: event.tags || [],
             created_at: event.created_at,
           },
-        })),
-      )
+        }))
     },
 
     async refreshInteractionsForPosts(posts) {

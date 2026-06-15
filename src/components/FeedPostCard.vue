@@ -20,25 +20,40 @@
       </q-item-section>
     </q-item>
 
-    <q-img
+    <q-carousel
+      v-if="postImages.length > 1"
+      v-model="activeImage"
+      animated
+      arrows
+      navigation
+      swipeable
+      control-color="white"
+      class="post-carousel bg-grey-1"
+    >
+      <q-carousel-slide
+        v-for="(image, index) in postImages"
+        :key="image"
+        :name="index"
+        class="q-pa-none flex flex-center bg-grey-1"
+      >
+        <img
+          :src="image"
+          :alt="post.caption || `Visual post image ${index + 1}`"
+          loading="lazy"
+          decoding="async"
+          class="post-image block full-width"
+        />
+      </q-carousel-slide>
+    </q-carousel>
+
+    <img
+      v-else
       :src="post.image"
       :alt="post.caption || 'Visual post image'"
       loading="lazy"
-      fit="contain"
+      decoding="async"
       class="post-image block full-width bg-grey-1"
-    >
-      <template #loading>
-        <div class="absolute-full flex flex-center bg-grey-1">
-          <q-spinner-dots color="primary" size="28px" />
-        </div>
-      </template>
-      <template #error>
-        <div class="absolute-full flex flex-center column text-blue-grey-5 q-gutter-xs bg-grey-1">
-          <q-icon name="broken_image" size="28px" />
-          <span class="text-caption">Image unavailable</span>
-        </div>
-      </template>
-    </q-img>
+    />
 
     <q-card-actions class="post-actions row items-center justify-between q-px-sm q-py-xs">
       <div class="row items-center q-gutter-xs">
@@ -165,6 +180,7 @@ const props = defineProps({
 const emit = defineEmits(['like-post', 'comment-post'])
 
 const formattedDate = computed(() => props.formatDate(props.post.createdAt))
+const postImages = computed(() => props.post.images?.length ? props.post.images : [props.post.image].filter(Boolean))
 const replies = computed(() => props.interaction?.replies || [])
 const likeCount = computed(() => props.interaction?.count || 0)
 const likedIcon = computed(() => (props.interaction?.likedByMe ? 'favorite' : 'favorite_border'))
@@ -179,6 +195,7 @@ const engagementLabel = computed(() => {
 const commentsOpen = ref(false)
 const commentDraft = ref('')
 const commentInput = ref(null)
+const activeImage = ref(0)
 
 function toggleComments() {
   commentsOpen.value = !commentsOpen.value
@@ -205,7 +222,16 @@ function publishComment() {
 }
 
 .post-image {
-  min-height: 220px;
+  height: auto;
+  object-fit: contain;
+}
+
+.post-carousel {
+  height: min(72vh, 640px);
+}
+
+.post-carousel .post-image {
+  max-height: min(72vh, 640px);
 }
 
 .post-caption {

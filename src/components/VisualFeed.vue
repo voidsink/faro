@@ -25,6 +25,13 @@
       </div>
     </div>
 
+    <q-banner v-if="pendingCount" rounded dense class="faro-warning q-mt-sm">
+      <div class="row items-center justify-between q-gutter-sm">
+        <span>{{ pendingCount }} new post{{ pendingCount === 1 ? '' : 's' }}</span>
+        <q-btn flat dense no-caps color="dark" label="Show" @click="$emit('show-pending')" />
+      </div>
+    </q-banner>
+
     <q-infinite-scroll v-if="posts.length" :disable="!hasMore" :offset="700" @load="loadMore">
       <div
         class="q-mt-md"
@@ -49,7 +56,7 @@
       </div>
 
       <template #loading>
-        <div class="row justify-center q-my-md">
+        <div class="row full-width justify-center q-my-md">
           <q-spinner-dots color="primary" size="32px" />
         </div>
       </template>
@@ -88,6 +95,10 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  pendingCount: {
+    type: Number,
+    default: 0,
+  },
   formatDate: {
     type: Function,
     required: true,
@@ -102,7 +113,7 @@ defineProps({
   },
 })
 
-const emit = defineEmits(['load-more', 'refresh', 'update:twoColumnFeed', 'like-post', 'comment-post'])
+const emit = defineEmits(['load-more', 'refresh', 'update:twoColumnFeed', 'like-post', 'comment-post', 'show-pending'])
 
 function loadMore(_index, done) {
   emit('load-more', done)

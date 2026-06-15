@@ -1,4 +1,5 @@
 import { SimplePool } from 'nostr-tools/pool'
+import { validateEvent, verifyEvent } from 'nostr-tools/pure'
 
 export const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
@@ -64,6 +65,14 @@ export function relaysForOptions(options = {}) {
 
 function isValidPubkey(pubkey) {
   return typeof pubkey === 'string' && HEX64_PATTERN.test(pubkey)
+}
+
+function isValidNostrEvent(event) {
+  try {
+    return Boolean(event?.id && validateEvent(event) && verifyEvent(event))
+  } catch {
+    return false
+  }
 }
 
 function nowSeconds() {
@@ -152,10 +161,47 @@ export function requestEvents({ relays = DEFAULT_RELAYS, filters = [], timeoutMs
   ).then((results) => {
     const eventsById = new Map()
     for (const event of results.flat()) {
-      if (event?.id) eventsById.set(event.id, event)
+      if (isValidNostrEvent(event)) eventsById.set(event.id, event)
     }
     return [...eventsById.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
   })
+}
+
+export function subscribeVisualFeed(authors, options = {}) {
+  const authorList = uniqueStrings(authors).filter(isValidPubkey)
+  const relayUrls = relaysForOptions(options)
+  const onEvent = typeof options.onEvent === 'function' ? options.onEvent : () => {}
+
+  if (!authorList.length || !relayUrls.length) return { close() {} }
+
+  const subscriptions = []
+  const chunkSize = options.authorChunkSize || 20
+  for (let index = 0; index < authorList.length; index += chunkSize) {
+    const chunk = authorList.slice(index, index + chunkSize)
+    subscriptions.push(
+      pool.subscribe(
+        relayUrls,
+        {
+          kinds: [1],
+          authors: chunk,
+          since: options.since || nowSeconds(),
+        },
+        {
+          onevent(event) {
+            if (!isValidNostrEvent(event)) return
+            const imageUrls = extractImageUrls(event)
+            if (imageUrls.length) onEvent({ ...event, imageUrls })
+          },
+        },
+      ),
+    )
+  }
+
+  return {
+    close() {
+      for (const subscription of subscriptions) subscription.close?.()
+    },
+  }
 }
 
 export async function fetchProfile(pubkey, options = {}) {
