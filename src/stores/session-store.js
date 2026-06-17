@@ -1,6 +1,10 @@
 import { acceptHMRUpdate, defineStore } from 'pinia'
 import { npubEncode } from 'nostr-tools/nip19'
-import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
+import { authLabelForSource, safeIdentityForStorage } from 'src/services/auth/identity'
+import { loginWithNip07 as requestNip07Login, nip07Signer } from 'src/services/auth/nip07'
+import { parseRemoteSignerUrl } from 'src/services/auth/nip46'
+import { pomegranateUnavailableMessage } from 'src/services/auth/pomegranate'
+import { createKeypair, keypairFromSecretKey, makeLocalSigner, parseSecretKey } from 'src/services/auth/secretKey'
 import {
   clearLocalPosts,
   loadLocalPosts,
@@ -87,6 +91,7 @@ export const useSessionStore = defineStore('session', {
     pendingRelayEvents: [],
     liveFeedSubscription: null,
     publishingInteractions: {},
+    secretKey: null,
     message: '',
     refreshing: false,
   }),
@@ -115,8 +120,14 @@ export const useSessionStore = defineStore('session', {
 
     authLabel(state) {
       if (!state.identity) return 'logged out'
-      if (state.identity.source === 'nip07') return 'NIP-07'
-      return 'local dev'
+      return authLabelForSource(state.identity.source)
+    },
+
+    canSignNostrEvents(state) {
+      if (!state.identity?.pubkey) return false
+      if (state.identity.source === 'nip07') return Boolean(typeof window !== 'undefined' && window.nostr?.signEvent)
+      if (state.identity.source === 'local-key' || state.identity.source === 'nsec') return Boolean(state.secretKey)
+      return false
     },
 
     combinedFeed(state) {
@@ -164,10 +175,10 @@ export const useSessionStore = defineStore('session', {
     },
 
     loadIdentity() {
-      const current = readJson(identityKey, null)
+      const current = safeIdentityForStorage(readJson(identityKey, null))
       if (current?.pubkey) return current
 
-      const legacy = readJson(legacyIdentityKey, null)
+      const legacy = safeIdentityForStorage(readJson(legacyIdentityKey, null))
       if (legacy?.pubkey) {
         localStorage.setItem(identityKey, JSON.stringify(legacy))
         localStorage.removeItem(legacyIdentityKey)
@@ -178,7 +189,7 @@ export const useSessionStore = defineStore('session', {
     },
 
     saveIdentity(nextIdentity) {
-      localStorage.setItem(identityKey, JSON.stringify(nextIdentity))
+      localStorage.setItem(identityKey, JSON.stringify(safeIdentityForStorage(nextIdentity)))
       this.identity = nextIdentity
       this.relayProfile = {}
       this.following = []
@@ -196,22 +207,70 @@ export const useSessionStore = defineStore('session', {
     },
 
     async loginWithNip07() {
-      if (!window.nostr?.getPublicKey) {
-        this.message = 'No NIP-07 signer detected in this browser.'
-        return
-      }
       try {
-        const pubkey = await window.nostr.getPublicKey()
-        this.saveIdentity({ pubkey, source: 'nip07' })
+        const identity = await requestNip07Login(window)
+        this.secretKey = null
+        this.saveIdentity(identity)
         await this.refreshFromNostr()
       } catch {
         this.message = 'NIP-07 login was cancelled or failed.'
       }
     },
 
+    loginWithGoogle() {
+      this.message = pomegranateUnavailableMessage()
+    },
+
+    loginWithBunker(bunkerUrl) {
+      try {
+        const parsed = parseRemoteSignerUrl(bunkerUrl)
+        this.message = `Bunker URL looks valid for ${shortKey(parsed.signerPubkey)}. NIP-46 signing is planned next.`
+      } catch (error) {
+        this.message = error?.message || 'Invalid bunker URL.'
+      }
+    },
+
+    createLocalKey() {
+      const keypair = createKeypair()
+      this.secretKey = keypair.secretKey
+      this.saveIdentity({ pubkey: keypair.pubkey, source: 'local-key', sessionOnly: true })
+      this.message = `New key created for this session. Back it up now: ${keypair.nsec}`
+    },
+
+    importNsec(input) {
+      try {
+        const keypair = keypairFromSecretKey(parseSecretKey(input))
+        this.secretKey = keypair.secretKey
+        this.saveIdentity({ pubkey: keypair.pubkey, source: 'nsec', sessionOnly: true })
+        this.message = 'Private key imported for this session only.'
+      } catch (error) {
+        this.message = error?.message || 'Could not import private key.'
+      }
+    },
+
+    currentSigner() {
+      if (this.identity?.source === 'nip07') return nip07Signer(window)
+      if ((this.identity?.source === 'local-key' || this.identity?.source === 'nsec') && this.secretKey) {
+        return makeLocalSigner(this.secretKey)
+      }
+      return null
+    },
+
     generateIdentity() {
-      const pubkey = getPublicKey(generateSecretKey())
-      this.saveIdentity({ name: `Local ${pubkey.slice(0, 4)}`, pubkey, source: 'local-dev' })
+      this.createLocalKey()
+    },
+
+    requireSignerMessage(action = 'publishing to Nostr') {
+      if (!this.identity?.pubkey) {
+        return `Sign in before ${action}.`
+      }
+      if (this.identity.source === 'local-key' || this.identity.source === 'nsec') {
+        return 'This session key is no longer available. Sign in or import it again.'
+      }
+      if (this.identity.source === 'bunker' || this.identity.source === 'pomegranate') {
+        return 'Remote signer support is planned next.'
+      }
+      return 'No signer available.'
     },
 
     logout() {
@@ -219,6 +278,7 @@ export const useSessionStore = defineStore('session', {
       localStorage.removeItem(legacyIdentityKey)
       localStorage.removeItem(relayCacheKey)
       this.identity = null
+      this.secretKey = null
       this.relayProfile = {}
       this.authorProfiles = {}
       this.following = []
@@ -564,8 +624,9 @@ export const useSessionStore = defineStore('session', {
         this.message = 'Only relay posts can be liked on Nostr.'
         return
       }
-      if (!this.identity?.pubkey || this.identity.source !== 'nip07') {
-        this.message = 'Login with NIP-07 before publishing Nostr likes.'
+      const signer = this.currentSigner()
+      if (!signer) {
+        this.message = this.requireSignerMessage('publishing Nostr likes')
         return
       }
       if (this.interactionsByEventId[rootEvent.id]?.likedByMe) return
@@ -577,7 +638,7 @@ export const useSessionStore = defineStore('session', {
       }
       this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: true }
 
-      const result = await publishReaction(rootEvent, { timeoutMs: 7000 })
+      const result = await publishReaction(rootEvent, { timeoutMs: 7000, signer })
       this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: false }
 
       if (result.ok) {
@@ -599,13 +660,14 @@ export const useSessionStore = defineStore('session', {
         return false
       }
       if (!text) return false
-      if (!this.identity?.pubkey || this.identity.source !== 'nip07') {
-        this.message = 'Login with NIP-07 before publishing Nostr comments.'
+      const signer = this.currentSigner()
+      if (!signer) {
+        this.message = this.requireSignerMessage('publishing Nostr comments')
         return false
       }
 
       this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: true }
-      const result = await publishReply(rootEvent, text, { timeoutMs: 7000 })
+      const result = await publishReply(rootEvent, text, { timeoutMs: 7000, signer })
       this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: false }
 
       if (!result.ok) {

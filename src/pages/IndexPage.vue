@@ -9,6 +9,16 @@
         @refresh="session.refreshFromNostr"
       />
 
+      <login-dialog
+        v-model="loginDialogOpen"
+        :has-nip07="hasNip07"
+        @login-google="session.loginWithGoogle"
+        @login-nip07="loginWithNip07"
+        @login-bunker="session.loginWithBunker"
+        @create-key="createLocalKey"
+        @import-nsec="importNsec"
+      />
+
       <q-banner v-if="message" rounded class="faro-warning q-my-md" dense>{{ message }}</q-banner>
 
       <div class="row items-start justify-center q-col-gutter-md">
@@ -45,8 +55,7 @@
             :profile-subtitle="profileSubtitle"
             :auth-label="authLabel"
             :has-nip07="hasNip07"
-            @login-nip07="session.loginWithNip07"
-            @generate-identity="session.generateIdentity"
+            @open-login="loginDialogOpen = true"
             @logout="session.logout"
           />
 
@@ -71,6 +80,7 @@
 import { onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import AppTopBar from 'components/AppTopBar.vue'
+import LoginDialog from 'components/auth/LoginDialog.vue'
 import InsightsPanel from 'components/InsightsPanel.vue'
 import ProfilePanel from 'components/ProfilePanel.vue'
 //import StoriesStrip from 'components/StoriesStrip.vue'
@@ -97,10 +107,26 @@ const {
 } = storeToRefs(session)
 
 const twoColumnFeed = ref(false)
+const loginDialogOpen = ref(false)
 
 onMounted(() => {
   session.init()
 })
+
+async function loginWithNip07() {
+  await session.loginWithNip07()
+  if (identity.value) loginDialogOpen.value = false
+}
+
+function createLocalKey() {
+  session.createLocalKey()
+  loginDialogOpen.value = false
+}
+
+function importNsec(value) {
+  session.importNsec(value)
+  if (session.identity?.source === 'nsec') loginDialogOpen.value = false
+}
 
 function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })

@@ -23,19 +23,9 @@
         unelevated
         color="dark"
         no-caps
-        :disable="!hasNip07"
-        :label="hasNip07 ? 'Login with NIP-07' : 'No signer'"
-        data-testid="nip07-login"
-        @click="$emit('login-nip07')"
-      />
-      <q-btn
-        v-if="!identity"
-        outline
-        color="dark"
-        no-caps
-        label="Local identity"
-        data-testid="generate-identity"
-        @click="$emit('generate-identity')"
+        label="Sign in"
+        data-testid="open-login"
+        @click="$emit('open-login')"
       />
       <q-btn v-else flat color="dark" no-caps icon="logout" label="Logout" @click="$emit('logout')" />
     </div>
@@ -72,5 +62,5 @@ defineProps({
   },
 })
 
-defineEmits(['login-nip07', 'generate-identity', 'logout'])
+defineEmits(['open-login', 'logout'])
 </script>

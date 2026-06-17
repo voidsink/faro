@@ -26,19 +26,21 @@
                 </div>
               </div>
               <div class="col-12 col-sm-auto row q-gutter-sm">
-                <q-btn
-                  unelevated
-                  color="dark"
-                  no-caps
-                  :label="hasNip07 ? 'Login with NIP-07' : 'No signer detected'"
-                  :disable="!hasNip07"
-                  @click="loginWithNip07"
-                />
-                <q-btn outline color="dark" no-caps label="Local identity" @click="generateIdentity" />
+                <q-btn unelevated color="dark" no-caps label="Sign in" @click="loginDialogOpen = true" />
               </div>
             </q-card-section>
           </q-card>
         </q-card-section>
+
+        <login-dialog
+          v-model="loginDialogOpen"
+          :has-nip07="hasNip07"
+          @login-google="handleLoginGoogle"
+          @login-nip07="handleLoginNip07"
+          @login-bunker="handleLoginBunker"
+          @create-key="handleCreateKey"
+          @import-nsec="handleImportNsec"
+        />
 
         <q-stepper
           v-model="step"
@@ -226,6 +228,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
+import LoginDialog from 'components/auth/LoginDialog.vue'
 import {
   ASPECT_RATIOS,
   processImageFile,
@@ -236,7 +239,7 @@ import { useSessionStore } from 'src/stores/session-store'
 
 const router = useRouter()
 const session = useSessionStore()
-const { identity, displayName, hasNip07 } = storeToRefs(session)
+const { identity, displayName, hasNip07, canSignNostrEvents } = storeToRefs(session)
 
 const step = ref(1)
 const caption = ref('')
@@ -247,6 +250,7 @@ const selectedFile = ref(null)
 const message = ref('')
 const publishing = ref(false)
 const publishMode = ref('')
+const loginDialogOpen = ref(false)
 const galleryInput = ref(null)
 const cameraInput = ref(null)
 
@@ -257,20 +261,36 @@ const previewFrameStyle = computed(() => ({
   '--preview-ratio': previewRatio.value,
 }))
 const canSaveLocally = computed(() => Boolean(identity.value && imagePreview.value && !publishing.value))
-const canPublishToNostr = computed(() => Boolean(identity.value?.source === 'nip07' && processedMedia.value?.blob && !publishing.value))
+const canPublishToNostr = computed(() => Boolean(canSignNostrEvents.value && processedMedia.value?.blob && !publishing.value))
 
 onMounted(() => {
   session.init()
 })
 
-async function loginWithNip07() {
+async function handleLoginNip07() {
   message.value = ''
   await session.loginWithNip07()
+  if (session.identity) loginDialogOpen.value = false
 }
 
-function generateIdentity() {
+function handleLoginGoogle() {
+  session.loginWithGoogle()
+}
+
+function handleLoginBunker(value) {
+  session.loginWithBunker(value)
+}
+
+function handleCreateKey() {
   message.value = ''
-  session.generateIdentity()
+  session.createLocalKey()
+  loginDialogOpen.value = false
+}
+
+function handleImportNsec(value) {
+  message.value = ''
+  session.importNsec(value)
+  if (session.identity?.source === 'nsec') loginDialogOpen.value = false
 }
 
 function openGallery() {
@@ -363,8 +383,9 @@ function serializableMedia(media) {
 }
 
 async function publishNostrPost() {
-  if (!identity.value || identity.value.source !== 'nip07') {
-    message.value = 'Login with NIP-07 before publishing to Nostr.'
+  const signer = session.currentSigner()
+  if (!signer) {
+    message.value = session.requireSignerMessage('publishing to Nostr')
     return
   }
   if (!processedMedia.value?.blob) {
@@ -383,18 +404,21 @@ async function publishNostrPost() {
   message.value = 'Uploading image to Blossom…'
 
   try {
-    const uploadResult = await uploadBlobToBlossom(processedMedia.value, { serverUrls: blossomServers })
+    const uploadResult = await uploadBlobToBlossom(processedMedia.value, { serverUrls: blossomServers, signer })
     if (!uploadResult.ok) {
       message.value = uploadResult.error || 'Blossom upload failed.'
       return
     }
 
     message.value = 'Signing and publishing Nostr post…'
-    const publishResult = await publishMediaPost({
-      caption: caption.value.trim(),
-      mediaUrl: uploadResult.url,
-      media: uploadResult.metadata,
-    })
+    const publishResult = await publishMediaPost(
+      {
+        caption: caption.value.trim(),
+        mediaUrl: uploadResult.url,
+        media: uploadResult.metadata,
+      },
+      { signer },
+    )
 
     if (!publishResult.ok) {
       message.value = publishResult.error || 'Post could not be published to any relay.'
