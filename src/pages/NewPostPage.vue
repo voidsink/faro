@@ -16,6 +16,30 @@
           {{ message }}
         </q-banner>
 
+        <q-card-section v-if="!identity" class="q-pt-none">
+          <q-card flat bordered class="auth-prompt bg-grey-1">
+            <q-card-section class="row items-center q-col-gutter-md">
+              <div class="col-12 col-sm">
+                <div class="text-weight-bold">Login before publishing</div>
+                <div class="text-caption text-blue-grey-7">
+                  Use a signer to publish to Nostr, or create a local identity if you only want to save a draft on this device.
+                </div>
+              </div>
+              <div class="col-12 col-sm-auto row q-gutter-sm">
+                <q-btn
+                  unelevated
+                  color="dark"
+                  no-caps
+                  :label="hasNip07 ? 'Login with NIP-07' : 'No signer detected'"
+                  :disable="!hasNip07"
+                  @click="loginWithNip07"
+                />
+                <q-btn outline color="dark" no-caps label="Local identity" @click="generateIdentity" />
+              </div>
+            </q-card-section>
+          </q-card>
+        </q-card-section>
+
         <q-stepper
           v-model="step"
           flat
@@ -212,7 +236,7 @@ import { useSessionStore } from 'src/stores/session-store'
 
 const router = useRouter()
 const session = useSessionStore()
-const { identity, displayName } = storeToRefs(session)
+const { identity, displayName, hasNip07 } = storeToRefs(session)
 
 const step = ref(1)
 const caption = ref('')
@@ -238,6 +262,16 @@ const canPublishToNostr = computed(() => Boolean(identity.value?.source === 'nip
 onMounted(() => {
   session.init()
 })
+
+async function loginWithNip07() {
+  message.value = ''
+  await session.loginWithNip07()
+}
+
+function generateIdentity() {
+  message.value = ''
+  session.generateIdentity()
+}
 
 function openGallery() {
   message.value = ''

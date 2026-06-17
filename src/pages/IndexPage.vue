@@ -20,21 +20,6 @@
             :profiles="storyProfiles"
           /> -->
 
-          <post-composer
-            v-model:caption="caption"
-            v-model:selected-ratio="selectedRatio"
-            :identity="identity"
-            :active-profile="activeProfile"
-            :display-name="displayName"
-            :image-preview="imagePreview"
-            :ratios="ratios"
-            :can-post="canPost"
-            :ratio-to-number="ratioToNumber"
-            @select-image="selectImage"
-            @publish-post="publishPost"
-            @clear-post-cache="clearPostCache"
-          />
-
           <visual-feed
             v-model:two-column-feed="twoColumnFeed"
             :posts="combinedFeed"
@@ -83,15 +68,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import AppTopBar from 'components/AppTopBar.vue'
 import InsightsPanel from 'components/InsightsPanel.vue'
-import PostComposer from 'components/PostComposer.vue'
 import ProfilePanel from 'components/ProfilePanel.vue'
 //import StoriesStrip from 'components/StoriesStrip.vue'
 import VisualFeed from 'components/VisualFeed.vue'
-import { ASPECT_RATIOS, processImageFile } from 'src/services/localMedia'
 import { useSessionStore } from 'src/stores/session-store'
 
 const session = useSessionStore()
@@ -113,64 +96,11 @@ const {
   suggestedProfiles,
 } = storeToRefs(session)
 
-const caption = ref('')
-const imagePreview = ref('')
-const selectedRatio = ref('1:1')
 const twoColumnFeed = ref(false)
-
-const ratios = Object.keys(ASPECT_RATIOS)
-
-const canPost = computed(() => Boolean(identity.value && imagePreview.value))
 
 onMounted(() => {
   session.init()
 })
-
-async function selectImage(event) {
-  message.value = ''
-  const file = event.target.files?.[0]
-  if (!file) return
-  try {
-    const processed = await processImageFile(file, selectedRatio.value)
-    imagePreview.value = processed.dataUrl
-  } catch {
-    message.value = 'Could not process that image.'
-  }
-}
-
-function publishPost() {
-  if (!identity.value) {
-    message.value = 'Login or create a local development identity before posting.'
-    return
-  }
-  if (!imagePreview.value) {
-    message.value = 'Choose an image before posting.'
-    return
-  }
-
-  const nextPost = {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    author: { name: displayName.value, pubkey: identity.value.pubkey },
-    caption: caption.value.trim(),
-    image: imagePreview.value,
-    ratio: selectedRatio.value,
-    createdAt: new Date().toISOString(),
-    source: 'local kind 1 draft',
-  }
-
-  try {
-    session.addLocalPost(nextPost)
-    caption.value = ''
-    imagePreview.value = ''
-    message.value = 'Posted locally.'
-  } catch {
-    message.value = 'Could not save locally. Try a smaller image or clear local posts.'
-  }
-}
-
-function clearPostCache() {
-  session.clearPostCache()
-}
 
 function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -182,11 +112,6 @@ async function loadMoreFeed(done) {
   } finally {
     done?.()
   }
-}
-
-function ratioToNumber(ratio) {
-  const value = ASPECT_RATIOS[ratio] || ASPECT_RATIOS['1:1']
-  return value.width / value.height
 }
 
 function formatDate(date) {
