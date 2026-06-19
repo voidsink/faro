@@ -175,22 +175,21 @@
           </q-step>
 
           <q-step :name="4" title="Post" icon="send">
-            <q-card
-              flat
-              bordered
-              class="review-card overflow-hidden q-mx-auto"
-              :style="previewFrameStyle"
-            >
-              <div
-                v-if="imagePreview"
-                class="review-preview bg-grey-1"
-              >
-                <img :src="imagePreview" alt="Post preview" class="block fit" />
-              </div>
-              <q-card-section>
-                <div class="text-weight-bold">{{ displayName }}</div>
-                <p v-if="caption.trim()" class="caption-preview q-mt-sm q-mb-none">{{ caption.trim() }}</p>
-                <p v-else class="caption-preview q-mt-sm q-mb-none text-blue-grey-6">No caption.</p>
+            <q-card flat bordered class="review-card overflow-hidden q-mx-auto">
+              <q-card-section class="review-grid q-pa-none">
+                <div
+                  v-if="imagePreview"
+                  class="review-preview bg-grey-1"
+                  :style="previewFrameStyle"
+                >
+                  <img :src="imagePreview" alt="Post preview" class="block fit" />
+                </div>
+                <div class="review-caption column q-pa-md">
+                  <div class="text-caption text-blue-grey-6 text-weight-bold text-uppercase">Review caption</div>
+                  <div class="text-weight-bold q-mt-xs">{{ displayName }}</div>
+                  <p v-if="caption.trim()" class="caption-preview q-mt-md q-mb-none">{{ caption.trim() }}</p>
+                  <p v-else class="caption-preview q-mt-md q-mb-none text-blue-grey-6">No caption.</p>
+                </div>
               </q-card-section>
             </q-card>
 
@@ -225,7 +224,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import LoginDialog from 'components/auth/LoginDialog.vue'
@@ -265,6 +264,10 @@ const canPublishToNostr = computed(() => Boolean(canSignNostrEvents.value && pro
 
 onMounted(() => {
   session.init()
+})
+
+watch(identity, (nextIdentity) => {
+  if (nextIdentity?.pubkey) loginDialogOpen.value = false
 })
 
 async function handleLoginNip07() {
@@ -493,7 +496,17 @@ function relayPublishMessage(results = []) {
 
 .review-preview {
   width: 100%;
+  max-height: 58vh;
   aspect-ratio: var(--preview-ratio);
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.85fr);
+}
+
+.review-caption {
+  min-width: 0;
 }
 
 .frame-preview img,
@@ -506,7 +519,7 @@ function relayPublishMessage(results = []) {
 }
 
 .review-card {
-  width: min(100%, calc(58vh * var(--preview-ratio)));
+  width: min(100%, 820px);
   border-color: rgba(20, 24, 28, 0.08);
 }
 
@@ -532,6 +545,14 @@ function relayPublishMessage(results = []) {
 
   :deep(.q-stepper__content) {
     padding: 18px 16px 22px;
+  }
+
+  .review-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-preview {
+    max-height: none;
   }
 
   .stepper-nav {

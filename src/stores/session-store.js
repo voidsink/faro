@@ -169,9 +169,7 @@ export const useSessionStore = defineStore('session', {
       this.loadRelayCache()
       this.initialized = true
 
-      if (this.identity?.pubkey) {
-        this.refreshFromNostr({ silent: true })
-      }
+      this.refreshFromNostr({ silent: true })
     },
 
     loadIdentity() {
@@ -291,6 +289,7 @@ export const useSessionStore = defineStore('session', {
       this.hasMoreRelayPosts = false
       this.loadingMoreRelayPosts = false
       this.message = 'Logged out. Local posts were kept.'
+      this.refreshFromNostr({ silent: true })
     },
 
     loadRelayCache() {
@@ -364,19 +363,16 @@ export const useSessionStore = defineStore('session', {
     },
 
     async refreshFromNostr({ silent = false } = {}) {
-      if (!this.identity?.pubkey) {
-        if (!silent) this.message = 'Login before fetching Nostr data.'
-        return
-      }
-
       this.refreshing = true
       if (!silent) this.message = ''
 
       try {
-        const [profileResult, followingResult] = await Promise.all([
-          fetchProfile(this.identity.pubkey),
-          fetchFollowing(this.identity.pubkey),
-        ])
+        const [profileResult, followingResult] = this.identity?.pubkey
+          ? await Promise.all([
+              fetchProfile(this.identity.pubkey),
+              fetchFollowing(this.identity.pubkey),
+            ])
+          : [{ ok: false, profile: {} }, { ok: false, pubkeys: [], relayHints: [] }]
 
         let refreshed = false
 
@@ -390,7 +386,7 @@ export const useSessionStore = defineStore('session', {
           refreshed = true
         }
 
-        const authors = [this.identity.pubkey, ...this.following].slice(0, 100)
+        const authors = this.feedAuthors()
         const latest = this.latestRelayPostTimestamp()
         const visualResult = await fetchVisualFeed(authors, {
           limit: silent && !this.relayPosts.length ? INITIAL_FEED_LIMIT : FEED_PAGE_SIZE,
@@ -433,7 +429,7 @@ export const useSessionStore = defineStore('session', {
     },
 
     async loadMoreVisualPosts() {
-      if (this.loadingMoreRelayPosts || !this.hasMoreRelayPosts || !this.identity?.pubkey) return
+      if (this.loadingMoreRelayPosts || !this.hasMoreRelayPosts) return
 
       const until = this.relayCursor || this.cursorFromPosts(this.relayPosts)
       if (!until) {
@@ -443,7 +439,7 @@ export const useSessionStore = defineStore('session', {
 
       this.loadingMoreRelayPosts = true
       try {
-        const authors = [this.identity.pubkey, ...this.following].slice(0, 100)
+        const authors = this.feedAuthors()
         const visualResult = await fetchVisualFeed(authors, {
           limit: FEED_PAGE_SIZE,
           until,
@@ -490,6 +486,12 @@ export const useSessionStore = defineStore('session', {
         if (!Number.isFinite(createdAt)) return value
         return Math.max(value, createdAt)
       }, 0)
+    },
+
+    feedAuthors() {
+      return this.identity?.pubkey
+        ? [this.identity.pubkey, ...this.following.filter((pubkey) => pubkey !== this.identity.pubkey)].slice(0, 100)
+        : []
     },
 
     startLiveFeedSubscription() {

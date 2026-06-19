@@ -6,6 +6,7 @@ import {
   buildReplyEvent,
   buildReplyFilter,
   buildReactionFilter,
+  buildVisualFeedFilters,
   extractReactionSummary,
   mapReplyEvents,
 } from '../src/services/nostrRelay.js'
@@ -120,4 +121,32 @@ test('buildReplyEvent creates a kind 1 root reply for a visual post', () => {
     content: 'Great frame',
     tags: [['e', rootEvent.id, '', 'root'], ['p', rootEvent.pubkey]],
   })
+})
+
+
+test('buildVisualFeedFilters includes the viewer and followed authors for logged-in feeds', () => {
+  const viewer = '1'.repeat(64)
+  const followed = '2'.repeat(64)
+
+  assert.deepEqual(buildVisualFeedFilters([viewer, followed], { limit: 12, since: 100, until: 200 }), [
+    {
+      kinds: [1],
+      authors: [viewer, followed],
+      limit: 20,
+      since: 100,
+      until: 200,
+    },
+  ])
+})
+
+test('buildVisualFeedFilters omits authors for logged-out global feed requests', () => {
+  const [filter] = buildVisualFeedFilters([], { limit: 24, until: 200 })
+
+  assert.deepEqual(filter, {
+    kinds: [1],
+    limit: 24,
+    since: undefined,
+    until: 200,
+  })
+  assert.equal(Object.hasOwn(filter, 'authors'), false)
 })

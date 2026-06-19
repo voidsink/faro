@@ -280,33 +280,39 @@ export function relayHintsFromFollowingEvent(event) {
   )
 }
 
+export function buildVisualFeedFilters(authors, options = {}) {
+  const authorList = uniqueStrings(authors).filter(isValidPubkey)
+  const chunkSize = options.authorChunkSize || 20
+  const authorChunks = []
+  for (let index = 0; index < authorList.length; index += chunkSize) {
+    authorChunks.push(authorList.slice(index, index + chunkSize))
+  }
+  if (!authorChunks.length) authorChunks.push([])
+
+  const perChunkLimit = Math.max(options.limit || MAX_VISUAL_EVENTS, 20)
+  return authorChunks.map((chunk) => {
+    const filter = {
+      kinds: [1],
+      limit: perChunkLimit,
+      since: options.since,
+      until: options.until || nowSeconds(),
+    }
+    if (chunk.length) filter.authors = chunk
+    return filter
+  })
+}
+
 export async function fetchVisualFeed(authors, options = {}) {
   const authorList = uniqueStrings(authors).filter(isValidPubkey)
   const fallback = { ok: false, authors: authorList, events: [], error: null }
 
-  if (!authorList.length) return { ...fallback, error: 'No valid authors' }
-
   try {
-    const chunkSize = options.authorChunkSize || 20
-    const authorChunks = []
-    for (let index = 0; index < authorList.length; index += chunkSize) {
-      authorChunks.push(authorList.slice(index, index + chunkSize))
-    }
-    const perChunkLimit = Math.max(options.limit || MAX_VISUAL_EVENTS, 20)
     const relayEvents = await Promise.all(
-      authorChunks.map((chunk) =>
+      buildVisualFeedFilters(authorList, options).map((filter) =>
         requestEvents({
           relays: relaysForOptions(options),
           timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
-          filters: [
-            {
-              kinds: [1],
-              authors: chunk,
-              limit: perChunkLimit,
-              since: options.since,
-              until: options.until || nowSeconds(),
-            },
-          ],
+          filters: [filter],
         }),
       ),
     )

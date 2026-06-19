@@ -22,7 +22,7 @@ test('buildBlossomUploadUrl posts to server upload endpoint', () => {
   assert.equal(buildBlossomUploadUrl('https://blossom.example.com/upload'), 'https://blossom.example.com/upload')
 })
 
-test('buildBlossomAuthEvent creates a NIP-98-style upload authorization event', () => {
+test('buildBlossomAuthEvent creates a BUD-11 upload authorization event', () => {
   assert.deepEqual(
     buildBlossomAuthEvent({
       uploadUrl: 'https://blossom.example.com/upload',
@@ -32,13 +32,14 @@ test('buildBlossomAuthEvent creates a NIP-98-style upload authorization event', 
       now: () => 1710000000,
     }),
     {
-      kind: 27235,
+      kind: 24242,
       created_at: 1710000000,
-      content: '',
+      content: 'Upload Blob',
       tags: [
-        ['u', 'https://blossom.example.com/upload'],
-        ['method', 'PUT'],
+        ['t', 'upload'],
+        ['expiration', '1710000600'],
         ['x', 'a'.repeat(64)],
+        ['server', 'blossom.example.com'],
         ['m', 'image/jpeg'],
         ['size', '123'],
       ],

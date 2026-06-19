@@ -77,7 +77,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import AppTopBar from 'components/AppTopBar.vue'
 import LoginDialog from 'components/auth/LoginDialog.vue'
@@ -111,6 +111,10 @@ const loginDialogOpen = ref(false)
 
 onMounted(() => {
   session.init()
+})
+
+watch(identity, (nextIdentity) => {
+  if (nextIdentity?.pubkey) loginDialogOpen.value = false
 })
 
 async function loginWithNip07() {
