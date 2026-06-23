@@ -109,10 +109,23 @@
 
     <q-card-section class="q-pt-none q-px-md q-pb-md">
       <div class="text-caption text-weight-bold">{{ engagementLabel }}</div>
-      <p v-if="post.caption" class="post-caption q-mt-xs q-mb-none">
+      <p
+        v-if="post.caption"
+        class="post-caption q-mt-xs q-mb-none"
+        :class="{ 'post-caption--clamped': captionLong && !captionExpanded }"
+      >
         <strong>{{ post.author.name }}</strong>
         {{ post.caption }}
       </p>
+       <q-btn
+         v-if="captionLong"
+         flat
+         dense
+         no-caps
+         class="q-pa-none text-blue-grey-5"
+         :label="captionExpanded ? 'Show less...' : 'more...'"
+         @click="captionExpanded = !captionExpanded"
+       />
       <q-btn
         flat
         dense
@@ -214,6 +227,12 @@ const commentDraft = ref('')
 const commentInput = ref(null)
 const activeImage = ref(0)
 const activePostImage = computed(() => postImages.value[activeImage.value] || postImages.value[0] || '')
+const captionExpanded = ref(false)
+const captionLong = computed(() => {
+  const text = props.post.caption?.trim()
+  if (!text) return false
+  return text.split(/\n|\r/).length > 5 || text.length > 220
+})
 
 function toggleComments() {
   commentsOpen.value = !commentsOpen.value
@@ -311,6 +330,13 @@ function nextImage() {
 .post-caption {
   line-height: 1.45;
   white-space: pre-wrap;
+}
+
+.post-caption--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .post-actions :deep(.q-icon) {

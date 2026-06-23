@@ -60,18 +60,71 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { decode } from 'nostr-tools/nip19'
 import { storeToRefs } from 'pinia'
 import UserAvatar from 'components/UserAvatar.vue'
 import { useSessionStore } from 'src/stores/session-store'
 
 const session = useSessionStore()
-const { identity, activeProfile: profile, displayName, userPosts: posts } = storeToRefs(session)
+const { identity, relayProfile, authorProfiles, userPosts: allUserPosts } = storeToRefs(session)
+const route = useRoute()
 
 const following = ref(false)
+const pubkey = computed(() => {
+  const param = route.params.pubkey
+  if (!param) return identity.value?.pubkey || ''
+  if (param.startsWith('npub')) {
+    try {
+      const { data } = decode(param)
+      return data
+    } catch {
+      return ''
+    }
+  }
+  return param
+})
+const displayName = computed(() => {
+  const profile = normalizeProfile(authorProfiles.value[pubkey.value])
+  const name = profile.display_name || profile.name
+  if (name) return name
+  return session.shortKey(pubkey.value) || 'Faro user'
+})
+const profile = computed(() => {
+  if (pubkey.value && pubkey.value === identity.value?.pubkey) {
+    return { ...normalizeProfile(relayProfile.value), ...identity.value }
+  }
+  return normalizeProfile(authorProfiles.value[pubkey.value])
+})
+const posts = computed(() =>
+  pubkey.value
+    ? allUserPosts.value.filter((post) => post.author?.pubkey === pubkey.value)
+    : allUserPosts.value
+)
+
+function normalizeProfile(profile = {}) {
+  return {
+    name: profile.name || '',
+    display_name: profile.display_name || '',
+    picture: profile.picture || '',
+    banner: profile.banner || '',
+    about: profile.about || '',
+    nip05: profile.nip05 || '',
+  }
+}
 
 onMounted(() => {
   session.init()
+  if (pubkey.value && pubkey.value !== identity.value?.pubkey) {
+    session.fetchProfileByPubkey(pubkey.value)
+  }
+})
+
+watch(pubkey, (next) => {
+  if (next && next !== identity.value?.pubkey) {
+    session.fetchProfileByPubkey(next)
+  }
 })
 
 function shortKey(pubkey = '') {

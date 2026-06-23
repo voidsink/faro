@@ -3,14 +3,26 @@
     <div class="row items-center justify-between q-col-gutter-sm">
       <h2 class="section-heading col-auto q-ma-none">Visual feed</h2>
       <div class="col-auto row items-center q-col-gutter-sm">
-        <div class="col-auto">
-          <q-toggle
-            :model-value="twoColumnFeed"
-            dense
-            label="2 columns"
-            @update:model-value="$emit('update:twoColumnFeed', $event)"
-          />
-        </div>
+        <div class="col-auto row items-center no-wrap q-gutter-xs">
+        <q-btn
+          flat
+          round
+          dense
+          icon="calendar_view_day"
+          :color="!twoColumnFeed ? 'dark' : 'blue-grey-4'"
+          aria-label="Single column feed"
+          @click="$emit('update:twoColumnFeed', false)"
+        />
+        <q-btn
+          flat
+          round
+          dense
+          icon="dashboard"
+          :color="twoColumnFeed ? 'dark' : 'blue-grey-4'"
+          aria-label="Two column feed"
+          @click="$emit('update:twoColumnFeed', true)"
+        />
+      </div>
         <div class="col-auto">
           <q-btn
             flat

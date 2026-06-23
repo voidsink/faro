@@ -1,5 +1,5 @@
 import { acceptHMRUpdate, defineStore } from 'pinia'
-import { npubEncode } from 'nostr-tools/nip19'
+import { decode, npubEncode } from 'nostr-tools/nip19'
 import { authLabelForSource, safeIdentityForStorage } from 'src/services/auth/identity'
 import { loginWithNip07 as requestNip07Login, nip07Signer } from 'src/services/auth/nip07'
 import { parseRemoteSignerUrl } from 'src/services/auth/nip46'
@@ -535,7 +535,6 @@ export const useSessionStore = defineStore('session', {
     async hydrateAuthorProfiles(pubkeys) {
       const missing = pubkeys.filter((pubkey) => pubkey && !this.authorProfiles[pubkey]).slice(0, 20)
       if (!missing.length) return
-
       const entries = await Promise.all(
         missing.map(async (pubkey) => {
           const result = await fetchProfile(pubkey, { timeoutMs: 4500 })
@@ -543,11 +542,41 @@ export const useSessionStore = defineStore('session', {
           return [pubkey, profile]
         }),
       )
-
       this.authorProfiles = {
         ...this.authorProfiles,
         ...Object.fromEntries(entries),
       }
+    },
+
+    async fetchProfileByPubkey(pubkey) {
+      if (!pubkey || this.authorProfiles[pubkey]?.__fetched) return
+      const hexPubkey = this.resolvePubkey(pubkey)
+      if (!hexPubkey) return
+      try {
+        const result = await fetchProfile(hexPubkey, { timeoutMs: 4500 })
+        this.authorProfiles = {
+          ...this.authorProfiles,
+          [hexPubkey]: { ...(result.ok ? normalizeProfile(result.profile) : {}), __fetched: true },
+        }
+      } catch {
+        this.authorProfiles = {
+          ...this.authorProfiles,
+          [hexPubkey]: { ...normalizeProfile(this.authorProfiles[hexPubkey] || {}), __fetched: true },
+        }
+      }
+    },
+
+    resolvePubkey(pubkey) {
+      if (!pubkey) return ''
+      if (pubkey.startsWith('npub')) {
+        try {
+          const { data } = decode(pubkey)
+          return data
+        } catch {
+          return ''
+        }
+      }
+      return pubkey
     },
 
     authorForPubkey(pubkey) {

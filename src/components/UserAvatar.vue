@@ -1,12 +1,19 @@
 <template>
-  <q-avatar :size="size" :color="avatarColor" text-color="white" class="user-avatar">
-    <q-img v-if="picture" :src="picture" :alt="alt" ratio="1" />
-    <span v-else>{{ initials }}</span>
-  </q-avatar>
+  <component
+    :is="pubkey ? 'router-link' : 'div'"
+    :to="profileHref"
+    class="user-avatar-link"
+  >
+    <q-avatar :size="size" :color="avatarColor" text-color="white" class="user-avatar">
+      <q-img v-if="picture" :src="picture" :alt="alt" ratio="1" />
+      <span v-else>{{ initials }}</span>
+    </q-avatar>
+  </component>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { npubEncode } from 'nostr-tools/nip19'
 
 const props = defineProps({
   name: {
@@ -28,6 +35,14 @@ const props = defineProps({
 })
 
 const alt = computed(() => props.name || 'Profile avatar')
+const profileHref = computed(() => {
+  if (!props.pubkey) return undefined
+  try {
+    return `/profile/${npubEncode(props.pubkey)}`
+  } catch {
+    return undefined
+  }
+})
 
 const initials = computed(() => {
   const cleaned = String(props.name).trim()
@@ -51,6 +66,11 @@ const avatarColor = computed(() => {
 </script>
 
 <style scoped>
+.user-avatar-link {
+  display: inline-flex;
+  text-decoration: none;
+}
+
 .user-avatar {
   flex: 0 0 auto;
   font-weight: 800;
