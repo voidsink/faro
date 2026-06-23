@@ -4,14 +4,14 @@
       <h2 class="section-heading col-auto q-ma-none">Visual feed</h2>
       <div class="col-auto row items-center q-col-gutter-sm">
         <div class="col-auto">
-          <q-btn
-            flat
-            round
-            dense
-            :icon="twoColumnFeed ? 'dashboard' : 'calendar_view_day'"
+          <q-checkbox
+            v-model="twoColumnFeedProxy"
+            checked-icon="dashboard"
+            unchecked-icon="calendar_view_day"
             :color="twoColumnFeed ? 'dark' : 'blue-grey-4'"
-            :aria-label="twoColumnFeed ? 'Switch to single column' : 'Switch to two columns'"
-            @click="$emit('update:twoColumnFeed', !twoColumnFeed)"
+            keep-color
+            dense
+            :aria-label="twoColumnFeed ? 'Two column feed' : 'Single column feed'"
           />
         </div>
         <div class="col-auto">
@@ -86,9 +86,19 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import FeedPostCard from 'components/FeedPostCard.vue'
 
-defineProps({
+const emit = defineEmits([
+  'load-more',
+  'refresh',
+  'update:twoColumnFeed',
+  'like-post',
+  'comment-post',
+  'show-pending',
+])
+
+const props = defineProps({
   posts: {
     type: Array,
     default: () => [],
@@ -123,14 +133,10 @@ defineProps({
   },
 })
 
-const emit = defineEmits([
-  'load-more',
-  'refresh',
-  'update:twoColumnFeed',
-  'like-post',
-  'comment-post',
-  'show-pending',
-])
+const twoColumnFeedProxy = computed({
+  get: () => props.twoColumnFeed,
+  set: (value) => emit('update:twoColumnFeed', value),
+})
 
 function loadMore(_index, done) {
   emit('load-more', done)
