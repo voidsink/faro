@@ -20,31 +20,48 @@
       </q-item-section>
     </q-item>
 
-    <q-carousel
-      v-if="postImages.length > 1"
-      v-model="activeImage"
-      animated
-      arrows
-      navigation
-      swipeable
-      control-color="white"
-      class="post-carousel bg-grey-1"
-    >
-      <q-carousel-slide
-        v-for="(image, index) in postImages"
-        :key="image"
-        :name="index"
-        class="q-pa-none flex flex-center bg-grey-1"
-      >
-        <img
-          :src="image"
-          :alt="post.caption || `Visual post image ${index + 1}`"
-          loading="lazy"
-          decoding="async"
-          class="post-image block full-width"
+    <div v-if="postImages.length > 1" class="post-carousel bg-grey-1">
+      <img
+        :src="activePostImage"
+        :alt="post.caption || `Visual post image ${activeImage + 1}`"
+        loading="lazy"
+        decoding="async"
+        class="post-image"
+      />
+
+      <q-btn
+        v-if="activeImage > 0"
+        round
+        dense
+        unelevated
+        icon="chevron_left"
+        class="carousel-arrow carousel-arrow--prev"
+        aria-label="Previous image"
+        @click="previousImage"
+      />
+      <q-btn
+        v-if="activeImage < postImages.length - 1"
+        round
+        dense
+        unelevated
+        icon="chevron_right"
+        class="carousel-arrow carousel-arrow--next"
+        aria-label="Next image"
+        @click="nextImage"
+      />
+
+      <div class="carousel-dots row no-wrap justify-center q-gutter-xs">
+        <button
+          v-for="(_, index) in postImages"
+          :key="index"
+          type="button"
+          class="carousel-dot"
+          :class="{ 'carousel-dot--active': index === activeImage }"
+          :aria-label="`Show image ${index + 1}`"
+          @click="activeImage = index"
         />
-      </q-carousel-slide>
-    </q-carousel>
+      </div>
+    </div>
 
     <img
       v-else
@@ -52,7 +69,7 @@
       :alt="post.caption || 'Visual post image'"
       loading="lazy"
       decoding="async"
-      class="post-image block full-width bg-grey-1"
+      class="post-image bg-grey-1"
     />
 
     <q-card-actions class="post-actions row items-center justify-between q-px-sm q-py-xs">
@@ -196,6 +213,7 @@ const commentsOpen = ref(false)
 const commentDraft = ref('')
 const commentInput = ref(null)
 const activeImage = ref(0)
+const activePostImage = computed(() => postImages.value[activeImage.value] || postImages.value[0] || '')
 
 function toggleComments() {
   commentsOpen.value = !commentsOpen.value
@@ -213,33 +231,81 @@ function publishComment() {
   emit('comment-post', content)
   commentDraft.value = ''
 }
+
+function previousImage() {
+  activeImage.value = Math.max(0, activeImage.value - 1)
+}
+
+function nextImage() {
+  activeImage.value = Math.min(postImages.value.length - 1, activeImage.value + 1)
+}
 </script>
 
 <style scoped>
 .feed-post-card {
   display: inline-block;
   break-inside: avoid;
+  max-width: 100%;
 }
 
 .post-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
   height: auto;
+  max-height: min(78vh, 760px);
+  margin: 0 auto;
   object-fit: contain;
 }
 
 .post-carousel {
-  height: auto;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
 
-.post-carousel :deep(.q-carousel__slide) {
-  min-height: 0;
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  color: #263238;
+  background: rgba(255, 255, 255, 0.86);
+  transform: translateY(-50%);
 }
 
-.post-carousel :deep(.q-carousel__slides-container) {
-  height: auto;
+.carousel-arrow--prev {
+  left: 10px;
 }
 
-.post-carousel .post-image {
-  max-height: none;
+.carousel-arrow--next {
+  right: 10px;
+}
+
+.carousel-dots {
+  position: absolute;
+  right: 0;
+  bottom: 10px;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.carousel-dot {
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  pointer-events: auto;
+}
+
+.carousel-dot--active {
+  background: white;
 }
 
 .post-caption {
