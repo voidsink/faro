@@ -31,8 +31,13 @@
         <q-btn flat dense no-caps color="dark" label="Show" @click="$emit('show-pending')" />
       </div>
     </q-banner>
-
-    <q-infinite-scroll v-if="posts.length" :disable="!hasMore" :offset="700" @load="loadMore">
+    <q-infinite-scroll
+      v-if="posts.length"
+      :disable="!hasMore"
+      :offset="700"
+      @load="loadMore"
+      class="full-width"
+    >
       <div
         class="q-mt-md"
         :class="twoColumnFeed ? 'masonry' : 'column q-gutter-y-md'"
@@ -70,7 +75,9 @@
       data-testid="empty-feed"
     >
       <q-icon name="auto_awesome" size="32px" />
-      <p class="q-ma-none">No images yet. Post locally or fetch Nostr visuals from followed pubkeys.</p>
+      <p class="q-ma-none">
+        No images yet. Post locally or fetch Nostr visuals from followed pubkeys.
+      </p>
     </q-card>
   </section>
 </template>
@@ -113,7 +120,14 @@ defineProps({
   },
 })
 
-const emit = defineEmits(['load-more', 'refresh', 'update:twoColumnFeed', 'like-post', 'comment-post', 'show-pending'])
+const emit = defineEmits([
+  'load-more',
+  'refresh',
+  'update:twoColumnFeed',
+  'like-post',
+  'comment-post',
+  'show-pending',
+])
 
 function loadMore(_index, done) {
   emit('load-more', done)
