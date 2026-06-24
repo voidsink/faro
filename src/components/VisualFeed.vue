@@ -172,12 +172,14 @@ function loadMore(_index, done) {
 .visual-feed,
 .feed-refresh,
 .feed-grid {
+  width: 100%;
   min-width: 0;
   max-width: 100%;
 }
 
 .feed-refresh :deep(.q-pull-to-refresh__content),
 .feed-refresh :deep(.q-infinite-scroll) {
+  width: 100%;
   min-width: 0;
   max-width: 100%;
 }
