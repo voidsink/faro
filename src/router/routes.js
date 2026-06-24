@@ -6,6 +6,7 @@ const routes = [
       { path: '', component: () => import('pages/IndexPage.vue') },
       { path: 'new', component: () => import('pages/NewPostPage.vue') },
       { path: 'profile', component: () => import('pages/ProfilePage.vue') },
+      { path: 'profile/:pubkey', component: () => import('pages/ProfilePage.vue') },
       { path: 'settings', component: () => import('pages/SettingsPage.vue') },
     ],
   },

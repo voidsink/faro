@@ -117,15 +117,16 @@
         <strong>{{ post.author.name }}</strong>
         {{ post.caption }}
       </p>
-       <q-btn
-         v-if="captionLong"
-         flat
-         dense
-         no-caps
-         class="q-pa-none text-blue-grey-5"
-         :label="captionExpanded ? 'Show less...' : 'more...'"
-         @click="captionExpanded = !captionExpanded"
-       />
+      <div v-if="captionLong" class="caption-more-row q-mt-xs">
+        <q-btn
+          flat
+          dense
+          no-caps
+          class="q-pa-none text-blue-grey-5"
+          :label="captionExpanded ? 'Show less...' : 'more...'"
+          @click="captionExpanded = !captionExpanded"
+        />
+      </div>
       <q-btn
         flat
         dense
@@ -337,6 +338,10 @@ function nextImage() {
   -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.caption-more-row {
+  display: block;
 }
 
 .post-actions :deep(.q-icon) {

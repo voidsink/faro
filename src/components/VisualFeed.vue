@@ -8,7 +8,8 @@
             v-model="twoColumnFeedProxy"
             checked-icon="dashboard"
             unchecked-icon="calendar_view_day"
-            :color="twoColumnFeed ? 'dark' : 'blue-grey-4'"
+            color="dark"
+            class="layout-toggle"
             keep-color
             dense
             :aria-label="twoColumnFeed ? 'Two column feed' : 'Single column feed'"
@@ -159,6 +160,14 @@ function loadMore(_index, done) {
 
 .masonry-card {
   width: 100%;
+}
+
+.layout-toggle :deep(.q-checkbox__inner) {
+  font-size: 25px;
+}
+
+.layout-toggle :deep(.q-icon) {
+  font-size: 25px;
 }
 
 @media (max-width: 700px) {
