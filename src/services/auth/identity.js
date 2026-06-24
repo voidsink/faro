@@ -7,7 +7,7 @@ const SOURCE_LABELS = {
   'local-dev': 'Local dev',
 }
 
-const SIGNING_SOURCES = new Set(['nip07', 'local-key', 'nsec'])
+const SIGNING_SOURCES = new Set(['nip07', 'local-key', 'nsec', 'bunker', 'pomegranate'])
 
 export function normalizeIdentity(identity = null) {
   if (!identity?.pubkey) return null
@@ -29,10 +29,14 @@ export function isSigningSource(source = '') {
 export function safeIdentityForStorage(identity = null) {
   const normalized = normalizeIdentity(identity)
   if (!normalized) return null
-  const { secretKey, nsec, signer, remoteSigner, ...safe } = normalized
+  const { secretKey, nsec, signer, remoteSigner, clientSecretKey, raw, secret, ...safe } =
+    normalized
   void secretKey
   void nsec
   void signer
   void remoteSigner
+  void clientSecretKey
+  void raw
+  void secret
   return safe
 }

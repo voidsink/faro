@@ -1,8 +1,21 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { authLabelForSource, isSigningSource, safeIdentityForStorage } from '../src/services/auth/identity.js'
-import { createKeypair, keypairFromSecretKey, makeLocalSigner, parseSecretKey } from '../src/services/auth/secretKey.js'
-import { parseRemoteSignerUrl } from '../src/services/auth/nip46.js'
+import {
+  authLabelForSource,
+  isSigningSource,
+  safeIdentityForStorage,
+} from '../src/services/auth/identity.js'
+import {
+  createKeypair,
+  keypairFromSecretKey,
+  makeLocalSigner,
+  parseSecretKey,
+} from '../src/services/auth/secretKey.js'
+import {
+  isRemoteSignerUrl,
+  parseRemoteSignerUrl,
+  safeRemoteSignerIdentity,
+} from '../src/services/auth/nip46.js'
 
 test('auth labels and signing sources cover Faro login methods', () => {
   assert.equal(authLabelForSource('nip07'), 'Browser signer')
@@ -12,7 +25,12 @@ test('auth labels and signing sources cover Faro login methods', () => {
 })
 
 test('safeIdentityForStorage strips private key material', () => {
-  const identity = safeIdentityForStorage({ pubkey: 'abc', source: 'nsec', nsec: 'secret', secretKey: new Uint8Array([1]) })
+  const identity = safeIdentityForStorage({
+    pubkey: 'abc',
+    source: 'nsec',
+    nsec: 'secret',
+    secretKey: new Uint8Array([1]),
+  })
   assert.deepEqual(identity, { pubkey: 'abc', source: 'nsec' })
 })
 
@@ -33,9 +51,62 @@ test('secret key utilities generate and parse nsec keys', async () => {
 
 test('parseBunkerUrl validates bunker URLs', () => {
   const pubkey = 'a'.repeat(64)
-  const parsed = parseRemoteSignerUrl(`bunker://${pubkey}?relay=${encodeURIComponent('wss://relay.example')}`)
+  const parsed = parseRemoteSignerUrl(
+    `bunker://${pubkey}?relay=${encodeURIComponent('wss://relay.example')}`,
+  )
   assert.equal(parsed.signerPubkey, pubkey)
   assert.deepEqual(parsed.relays, ['wss://relay.example'])
+  assert.equal(parsed.secret, '')
   assert.throws(() => parseRemoteSignerUrl('https://example.com'), /bunker/)
   assert.throws(() => parseRemoteSignerUrl(`bunker://${pubkey}`), /relay/)
+})
+
+test('isRemoteSignerUrl recognizes bunker and nostrconnect schemes', () => {
+  assert.equal(isRemoteSignerUrl('bunker://deadbeef'), true)
+  assert.equal(isRemoteSignerUrl('nostrconnect://deadbeef'), true)
+  assert.equal(isRemoteSignerUrl('https://example.com'), false)
+  assert.equal(isRemoteSignerUrl(''), false)
+})
+
+test('parseRemoteSignerUrl supports nostrconnect:// URLs', () => {
+  const pubkey = 'b'.repeat(64)
+  const parsed = parseRemoteSignerUrl(
+    `nostrconnect://${pubkey}?relay=${encodeURIComponent('wss://relay.example')}&secret=shh`,
+  )
+  assert.equal(parsed.type, 'nostrconnect')
+  assert.equal(parsed.signerPubkey, pubkey)
+  assert.deepEqual(parsed.relays, ['wss://relay.example'])
+  assert.equal(parsed.secret, 'shh')
+})
+
+test('safeIdentityForStorage strips remote signer secrets', () => {
+  const identity = safeIdentityForStorage({
+    pubkey: 'abc',
+    source: 'bunker',
+    raw: 'bunker://pubkey?secret=shh',
+    clientSecretKey: new Uint8Array([1]),
+    remoteSigner: { pubkey: 'abc' },
+    secret: 'shh',
+    signerPubkey: 'pubkey',
+    relays: ['wss://relay'],
+  })
+  assert.deepEqual(identity, {
+    pubkey: 'abc',
+    source: 'bunker',
+    signerPubkey: 'pubkey',
+    relays: ['wss://relay'],
+  })
+})
+
+test('safeRemoteSignerIdentity keeps only safe metadata', () => {
+  const parsed = parseRemoteSignerUrl(
+    'bunker://' + 'c'.repeat(64) + '?relay=wss://relay.example&secret=shh',
+  )
+  const identity = safeRemoteSignerIdentity(parsed, 'accountpubkey', 'bunker')
+  assert.equal(identity.source, 'bunker')
+  assert.equal(identity.pubkey, 'accountpubkey')
+  assert.equal(identity.signerPubkey, parsed.signerPubkey)
+  assert.deepEqual(identity.relays, parsed.relays)
+  assert.equal(identity.secret, undefined)
+  assert.equal(identity.raw, undefined)
 })

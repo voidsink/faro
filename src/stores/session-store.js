@@ -2,7 +2,7 @@ import { acceptHMRUpdate, defineStore } from 'pinia'
 import { decode, npubEncode } from 'nostr-tools/nip19'
 import { authLabelForSource, safeIdentityForStorage } from 'src/services/auth/identity'
 import { loginWithNip07 as requestNip07Login, nip07Signer } from 'src/services/auth/nip07'
-import { parseRemoteSignerUrl } from 'src/services/auth/nip46'
+import { createRemoteSigner } from 'src/services/auth/nip46'
 import { pomegranateUnavailableMessage } from 'src/services/auth/pomegranate'
 import {
   createKeypair,
@@ -97,6 +97,8 @@ export const useSessionStore = defineStore('session', {
     liveFeedSubscription: null,
     publishingInteractions: {},
     secretKey: null,
+    remoteSigner: null,
+    bunkerLoading: false,
     message: '',
     refreshing: false,
   }),
@@ -134,6 +136,10 @@ export const useSessionStore = defineStore('session', {
         return Boolean(typeof window !== 'undefined' && window.nostr?.signEvent)
       if (state.identity.source === 'local-key' || state.identity.source === 'nsec')
         return Boolean(state.secretKey)
+      if (state.identity.source === 'bunker' || state.identity.source === 'pomegranate')
+        return Boolean(
+          state.remoteSigner?.pubkey && state.remoteSigner.pubkey === state.identity.pubkey,
+        )
       return false
     },
 
@@ -215,6 +221,7 @@ export const useSessionStore = defineStore('session', {
 
     async loginWithNip07() {
       try {
+        this.closeRemoteSigner()
         const identity = await requestNip07Login(window)
         this.secretKey = null
         this.saveIdentity(identity)
@@ -228,24 +235,42 @@ export const useSessionStore = defineStore('session', {
       this.message = pomegranateUnavailableMessage()
     },
 
-    loginWithBunker(bunkerUrl) {
+    async loginWithBunker(bunkerUrl) {
+      this.bunkerLoading = true
+      this.message = 'Connecting to remote signer…'
       try {
-        const parsed = parseRemoteSignerUrl(bunkerUrl)
-        this.message = `Bunker URL looks valid for ${shortKey(parsed.signerPubkey)}. NIP-46 signing is planned next.`
+        this.closeRemoteSigner()
+        const signer = await createRemoteSigner(bunkerUrl, { timeoutMs: 60000 })
+        this.remoteSigner = signer
+        this.secretKey = null
+        this.saveIdentity({
+          source: 'bunker',
+          pubkey: signer.pubkey,
+          signerPubkey: signer.signerPubkey,
+          relays: signer.relays,
+          type: signer.type,
+        })
+        this.message = `Connected to remote signer for ${shortKey(signer.pubkey)}.`
+        await this.refreshFromNostr()
       } catch (error) {
-        this.message = error?.message || 'Invalid bunker URL.'
+        this.remoteSigner = null
+        this.message = error?.message || 'Could not connect to remote signer.'
+      } finally {
+        this.bunkerLoading = false
       }
     },
 
-    createLocalKey() {
+    async createLocalKey() {
+      this.closeRemoteSigner()
       const keypair = createKeypair()
       this.secretKey = keypair.secretKey
       this.saveIdentity({ pubkey: keypair.pubkey, source: 'local-key', sessionOnly: true })
       this.message = `New key created for this session. Back it up now: ${keypair.nsec}`
     },
 
-    importNsec(input) {
+    async importNsec(input) {
       try {
+        this.closeRemoteSigner()
         const keypair = keypairFromSecretKey(parseSecretKey(input))
         this.secretKey = keypair.secretKey
         this.saveIdentity({ pubkey: keypair.pubkey, source: 'nsec', sessionOnly: true })
@@ -263,7 +288,21 @@ export const useSessionStore = defineStore('session', {
       ) {
         return makeLocalSigner(this.secretKey)
       }
+      if (
+        (this.identity?.source === 'bunker' || this.identity?.source === 'pomegranate') &&
+        this.remoteSigner?.pubkey === this.identity?.pubkey
+      ) {
+        return this.remoteSigner
+      }
       return null
+    },
+
+    closeRemoteSigner() {
+      const signer = this.remoteSigner
+      this.remoteSigner = null
+      Promise.resolve(signer?.close?.()).catch(() => {
+        // Ignore cleanup errors.
+      })
     },
 
     generateIdentity() {
@@ -278,12 +317,15 @@ export const useSessionStore = defineStore('session', {
         return 'This session key is no longer available. Sign in or import it again.'
       }
       if (this.identity.source === 'bunker' || this.identity.source === 'pomegranate') {
-        return 'Remote signer support is planned next.'
+        return this.remoteSigner
+          ? 'Remote signer is connected but could not sign. Try reconnecting.'
+          : 'Remote signer connection is not active. Sign in again with your bunker link.'
       }
       return 'No signer available.'
     },
 
     logout() {
+      this.closeRemoteSigner()
       localStorage.removeItem(identityKey)
       localStorage.removeItem(legacyIdentityKey)
       localStorage.removeItem(relayCacheKey)

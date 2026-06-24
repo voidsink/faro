@@ -64,8 +64,8 @@
               v-model="bunkerValue"
               outlined
               dense
-              label="Bunker / NIP-46 URL"
-              placeholder="bunker://..."
+              label="Remote signer / bunker"
+              placeholder="bunker://... or nostrconnect://..."
             >
               <template #after>
                 <q-btn
@@ -73,6 +73,8 @@
                   flat
                   color="dark"
                   label="Connect"
+                  :loading="bunkerLoading"
+                  :disable="!bunkerValue.trim()"
                   @click="$emit('login-bunker', bunkerValue)"
                 />
               </template>
@@ -134,6 +136,10 @@ defineProps({
     default: false,
   },
   hasNip07: {
+    type: Boolean,
+    default: false,
+  },
+  bunkerLoading: {
     type: Boolean,
     default: false,
   },

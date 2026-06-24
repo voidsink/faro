@@ -12,6 +12,7 @@
       <login-dialog
         v-model="loginDialogOpen"
         :has-nip07="hasNip07"
+        :bunker-loading="session.bunkerLoading"
         @login-google="session.loginWithGoogle"
         @login-nip07="loginWithNip07"
         @login-bunker="session.loginWithBunker"
