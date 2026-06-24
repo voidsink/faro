@@ -132,7 +132,7 @@ test('buildVisualFeedFilters includes the viewer and followed authors for logged
     {
       kinds: [1],
       authors: [viewer, followed],
-      limit: 20,
+      limit: 48,
       since: 100,
       until: 200,
     },
@@ -144,9 +144,22 @@ test('buildVisualFeedFilters omits authors for logged-out global feed requests',
 
   assert.deepEqual(filter, {
     kinds: [1],
-    limit: 24,
+    limit: 96,
     since: undefined,
     until: 200,
   })
   assert.equal(Object.hasOwn(filter, 'authors'), false)
+})
+
+test('buildVisualFeedFilters allows overriding raw relay fetch size', () => {
+  const viewer = '1'.repeat(64)
+  const [filter] = buildVisualFeedFilters([viewer], { limit: 50, filterLimit: 120, until: 200 })
+
+  assert.deepEqual(filter, {
+    kinds: [1],
+    authors: [viewer],
+    limit: 120,
+    since: undefined,
+    until: 200,
+  })
 })

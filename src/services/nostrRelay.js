@@ -289,7 +289,8 @@ export function buildVisualFeedFilters(authors, options = {}) {
   }
   if (!authorChunks.length) authorChunks.push([])
 
-  const perChunkLimit = Math.max(options.limit || MAX_VISUAL_EVENTS, 20)
+  const requestedVisualLimit = options.limit || MAX_VISUAL_EVENTS
+  const perChunkLimit = Math.max(options.filterLimit || requestedVisualLimit * 4, 20)
   return authorChunks.map((chunk) => {
     const filter = {
       kinds: [1],
