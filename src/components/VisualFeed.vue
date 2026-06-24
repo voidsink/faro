@@ -96,7 +96,7 @@
 </template>
 
 <script setup>
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import { useQuasar } from 'quasar'
 import FeedPostCard from 'components/FeedPostCard.vue'
 
@@ -152,21 +152,8 @@ const twoColumnFeedProxy = computed({
   set: (value) => emit('update:twoColumnFeed', value),
 })
 
-let refreshDone = null
-
-watch(
-  () => props.refreshing,
-  (next, prev) => {
-    if (!next && prev && refreshDone) {
-      refreshDone()
-      refreshDone = null
-    }
-  },
-)
-
 function onPullRefresh(done) {
-  refreshDone = done
-  emit('refresh')
+  emit('refresh', done)
 }
 
 function loadMore(_index, done) {

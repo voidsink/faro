@@ -6,7 +6,7 @@
         :active-profile="activeProfile"
         :display-name="displayName"
         :refreshing="refreshing"
-        @refresh="session.refreshFromNostr"
+        @refresh="refreshFeed"
       />
 
       <login-dialog
@@ -42,7 +42,7 @@
             @like-post="session.likePost"
             @comment-post="session.commentOnPost"
             @load-more="loadMoreFeed"
-            @refresh="session.refreshFromNostr"
+            @refresh="refreshFeed"
             @show-pending="session.mergePendingRelayPosts"
           />
         </section>
@@ -70,7 +70,13 @@
       </div>
 
       <q-page-sticky position="bottom-right" :offset="[18, 18]">
-        <q-btn fab-mini color="dark" icon="keyboard_arrow_up" aria-label="Back to top" @click="scrollToTop" />
+        <q-btn
+          fab-mini
+          color="dark"
+          icon="keyboard_arrow_up"
+          aria-label="Back to top"
+          @click="scrollToTop"
+        />
       </q-page-sticky>
     </div>
   </q-page>
@@ -139,6 +145,14 @@ function scrollToTop() {
 async function loadMoreFeed(done) {
   try {
     await session.loadMoreVisualPosts()
+  } finally {
+    done?.()
+  }
+}
+
+async function refreshFeed(done) {
+  try {
+    await session.refreshFromNostr()
   } finally {
     done?.()
   }
