@@ -55,6 +55,10 @@ function normalizeProfile(profile = {}) {
     banner: profile.banner || '',
     about: profile.about || '',
     nip05: profile.nip05 || '',
+    website: profile.website || '',
+    lud16: profile.lud16 || '',
+    lud06: profile.lud06 || '',
+    location: profile.location || '',
   }
 }
 
