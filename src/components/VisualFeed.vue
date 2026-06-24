@@ -1,5 +1,5 @@
 <template>
-  <section class="column q-gutter-y-sm full-width">
+  <section class="visual-feed column q-gutter-y-sm full-width">
     <div class="row items-center justify-between q-col-gutter-sm">
       <h2 class="section-heading col-auto q-ma-none">Visual feed</h2>
       <div class="col-auto row items-center q-col-gutter-sm">
@@ -41,6 +41,7 @@
       color="primary"
       bg-color="dark"
       scroll-target="body"
+      class="feed-refresh full-width"
       @refresh="onPullRefresh"
     >
       <q-infinite-scroll
@@ -51,7 +52,7 @@
         class="full-width"
       >
         <div
-          class="q-mt-md"
+          class="feed-grid q-mt-md"
           :class="twoColumnFeed ? 'masonry' : 'column q-gutter-y-md'"
           data-testid="feed-grid"
         >
@@ -166,6 +167,23 @@ function loadMore(_index, done) {
   font-size: 1rem;
   font-weight: 800;
   letter-spacing: 0;
+}
+
+.visual-feed,
+.feed-refresh,
+.feed-grid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.feed-refresh :deep(.q-pull-to-refresh__content),
+.feed-refresh :deep(.q-infinite-scroll) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.feed-grid:not(.masonry) {
+  width: 100%;
 }
 
 .masonry {

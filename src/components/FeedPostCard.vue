@@ -268,7 +268,15 @@ function nextImage() {
 .feed-post-card {
   display: inline-block;
   break-inside: avoid;
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
   max-width: 100%;
+}
+
+.feed-post-card :deep(.q-card__section),
+.feed-post-card :deep(.q-card__actions) {
+  min-width: 0;
 }
 
 .post-image {
