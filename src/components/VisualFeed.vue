@@ -35,60 +35,73 @@
         <q-btn flat dense no-caps color="dark" label="Show" @click="$emit('show-pending')" />
       </div>
     </q-banner>
-    <q-infinite-scroll
-      v-if="posts.length"
-      :disable="!hasMore"
-      :offset="700"
-      @load="loadMore"
-      class="full-width"
+
+    <q-pull-to-refresh
+      :disable="!isMobile"
+      color="primary"
+      bg-color="dark"
+      scroll-target="body"
+      @refresh="onPullRefresh"
     >
-      <div
-        class="q-mt-md"
-        :class="twoColumnFeed ? 'masonry' : 'column q-gutter-y-md'"
-        data-testid="feed-grid"
+      <q-infinite-scroll
+        v-if="posts.length"
+        :disable="!hasMore"
+        :offset="700"
+        @load="loadMore"
+        class="full-width"
       >
-        <feed-post-card
-          v-for="post in posts"
-          :key="post.id"
-          :class="{ 'masonry-card': twoColumnFeed }"
-          :post="post"
-          :interaction="interactionForPost(post)"
-          :reply-author="replyAuthor"
-          :format-date="formatDate"
-          @like-post="$emit('like-post', post)"
-          @comment-post="(content) => $emit('comment-post', post, content)"
-        />
-      </div>
-
-      <div v-if="!hasMore" class="text-center text-caption text-blue-grey-5 q-py-md">
-        Caught up for now.
-      </div>
-
-      <template #loading>
-        <div class="row full-width justify-center q-my-md">
-          <q-spinner-dots color="primary" size="32px" />
+        <div
+          class="q-mt-md"
+          :class="twoColumnFeed ? 'masonry' : 'column q-gutter-y-md'"
+          data-testid="feed-grid"
+        >
+          <feed-post-card
+            v-for="post in posts"
+            :key="post.id"
+            :class="{ 'masonry-card': twoColumnFeed }"
+            :post="post"
+            :interaction="interactionForPost(post)"
+            :reply-author="replyAuthor"
+            :format-date="formatDate"
+            @like-post="$emit('like-post', post)"
+            @comment-post="(content) => $emit('comment-post', post, content)"
+          />
         </div>
-      </template>
-    </q-infinite-scroll>
 
-    <q-card
-      v-else
-      flat
-      bordered
-      class="faro-surface column flex-center text-center text-brown-5 q-pa-lg q-mt-md q-gutter-sm"
-      data-testid="empty-feed"
-    >
-      <q-icon name="auto_awesome" size="32px" />
-      <p class="q-ma-none">
-        No images yet. Post locally or fetch Nostr visuals from followed pubkeys.
-      </p>
-    </q-card>
+        <div v-if="!hasMore" class="text-center text-caption text-blue-grey-5 q-py-md">
+          Caught up for now.
+        </div>
+
+        <template #loading>
+          <div class="row full-width justify-center q-my-md">
+            <q-spinner-dots color="primary" size="32px" />
+          </div>
+        </template>
+      </q-infinite-scroll>
+
+      <q-card
+        v-else
+        flat
+        bordered
+        class="faro-surface column flex-center text-center text-brown-5 q-pa-lg q-mt-md q-gutter-sm"
+        data-testid="empty-feed"
+      >
+        <q-icon name="auto_awesome" size="32px" />
+        <p class="q-ma-none">
+          No images yet. Post locally or fetch Nostr visuals from followed pubkeys.
+        </p>
+      </q-card>
+    </q-pull-to-refresh>
   </section>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
+import { useQuasar } from 'quasar'
 import FeedPostCard from 'components/FeedPostCard.vue'
+
+const $q = useQuasar()
+const isMobile = computed(() => $q.screen.lt.md)
 
 const emit = defineEmits([
   'load-more',
@@ -138,6 +151,23 @@ const twoColumnFeedProxy = computed({
   get: () => props.twoColumnFeed,
   set: (value) => emit('update:twoColumnFeed', value),
 })
+
+let refreshDone = null
+
+watch(
+  () => props.refreshing,
+  (next, prev) => {
+    if (!next && prev && refreshDone) {
+      refreshDone()
+      refreshDone = null
+    }
+  },
+)
+
+function onPullRefresh(done) {
+  refreshDone = done
+  emit('refresh')
+}
 
 function loadMore(_index, done) {
   emit('load-more', done)
