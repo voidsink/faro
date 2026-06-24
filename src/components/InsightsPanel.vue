@@ -5,18 +5,12 @@
       <span class="text-caption text-weight-bold">See More</span>
     </div>
 
-    <p class="q-ma-none text-blue-grey-6 text-caption">
-      {{ followingCount }} follows · {{ relayPostsCount }} relay visuals ·
-      {{ localPostsCount }} local
+    <p class="text-blue-grey-6 text-caption">
+      {{ followingCount }} follows · {{ relayPostsCount }} relays
     </p>
 
     <div class="bars row items-end q-py-md q-pb-xs q-gutter-sm" aria-hidden="true">
-      <i
-        v-for="height in barHeights"
-        :key="height"
-        class="col"
-        :style="{ height: `${height}%` }"
-      />
+      <i v-for="height in barHeights" :key="height" class="col" :style="{ height: `${height}%` }" />
     </div>
 
     <strong>Suggestions For You</strong>

@@ -1,9 +1,5 @@
 <template>
-  <component
-    :is="pubkey ? 'router-link' : 'div'"
-    :to="profileHref"
-    class="user-avatar-link"
-  >
+  <component :is="pubkey ? 'router-link' : 'div'" :to="profileHref" class="user-avatar-link">
     <q-avatar :size="size" :color="avatarColor" text-color="white" class="user-avatar">
       <q-img v-if="picture" :src="picture" :alt="alt" ratio="1" />
       <span v-else>{{ initials }}</span>

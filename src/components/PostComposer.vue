@@ -12,10 +12,20 @@
         </q-item-section>
         <q-item-section>
           <q-item-label class="text-weight-bold">Add post</q-item-label>
-          <q-item-label caption>{{ identity ? displayName : 'Login to unlock posting' }}</q-item-label>
+          <q-item-label caption>{{
+            identity ? displayName : 'Login to unlock posting'
+          }}</q-item-label>
         </q-item-section>
         <q-item-section side>
-          <q-btn flat dense round color="negative" icon="delete_sweep" aria-label="Clear local posts" @click="$emit('clear-post-cache')">
+          <q-btn
+            flat
+            dense
+            round
+            color="negative"
+            icon="delete_sweep"
+            aria-label="Clear local posts"
+            @click="$emit('clear-post-cache')"
+          >
             <q-tooltip>Clear local posts</q-tooltip>
           </q-btn>
         </q-item-section>

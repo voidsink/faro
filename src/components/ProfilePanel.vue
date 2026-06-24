@@ -7,12 +7,15 @@
           :name="displayName"
           :pubkey="identity?.pubkey"
           :picture="activeProfile.picture"
-          class="shadow-3"
         />
       </q-item-section>
       <q-item-section>
-        <q-item-label class="text-weight-bold">{{ identity ? displayName : 'Not logged in' }}</q-item-label>
-        <q-item-label caption>{{ identity ? profileSubtitle : 'Connect a signer to post.' }}</q-item-label>
+        <q-item-label class="text-weight-bold">{{
+          identity ? displayName : 'Not logged in'
+        }}</q-item-label>
+        <q-item-label caption>{{
+          identity ? profileSubtitle : 'Connect a signer to post.'
+        }}</q-item-label>
       </q-item-section>
     </q-item>
 
@@ -27,7 +30,15 @@
         data-testid="open-login"
         @click="$emit('open-login')"
       />
-      <q-btn v-else flat color="dark" no-caps icon="logout" label="Logout" @click="$emit('logout')" />
+      <q-btn
+        v-else
+        flat
+        color="dark"
+        no-caps
+        icon="logout"
+        label="Logout"
+        @click="$emit('logout')"
+      />
     </div>
   </q-card>
 </template>

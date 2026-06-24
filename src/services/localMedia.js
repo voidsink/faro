@@ -245,20 +245,25 @@ function newestFirst(posts) {
 function storageQuotaError(error) {
   return Boolean(
     error &&
-      (error.name === 'QuotaExceededError' ||
-        error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-        error.code === 22 ||
-        error.code === 1014),
+    (error.name === 'QuotaExceededError' ||
+      error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      error.code === 22 ||
+      error.code === 1014),
   )
 }
 
 export function loadLocalPosts() {
   assertBrowserApi('localStorage', globalThis.localStorage)
 
-  const posts = newestFirst(safeParsePosts(localStorage.getItem(LOCAL_POSTS_STORAGE_KEY))).slice(0, MAX_LOCAL_POSTS)
+  const posts = newestFirst(safeParsePosts(localStorage.getItem(LOCAL_POSTS_STORAGE_KEY))).slice(
+    0,
+    MAX_LOCAL_POSTS,
+  )
   if (posts.length) return posts
 
-  const legacyPosts = newestFirst(safeParsePosts(localStorage.getItem(LEGACY_LOCAL_POSTS_STORAGE_KEY))).slice(0, MAX_LOCAL_POSTS)
+  const legacyPosts = newestFirst(
+    safeParsePosts(localStorage.getItem(LEGACY_LOCAL_POSTS_STORAGE_KEY)),
+  ).slice(0, MAX_LOCAL_POSTS)
   if (legacyPosts.length) {
     saveLocalPostsWithPruning(legacyPosts)
     localStorage.removeItem(LEGACY_LOCAL_POSTS_STORAGE_KEY)

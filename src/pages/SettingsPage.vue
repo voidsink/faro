@@ -5,7 +5,9 @@
         <div class="row items-center justify-between q-mb-lg">
           <div>
             <h1 class="q-ma-none">Settings</h1>
-            <p class="q-ma-none text-blue-grey-6">Preferences and account controls for portable Nostr publishing.</p>
+            <p class="q-ma-none text-blue-grey-6">
+              Preferences and account controls for portable Nostr publishing.
+            </p>
           </div>
           <q-btn flat round icon="home" aria-label="Home" to="/" />
         </div>
@@ -22,7 +24,8 @@
             <q-item-section>
               <q-item-label>Media storage</q-item-label>
               <q-item-label caption>
-                Blossom stores image bytes. Faro tries servers in order, so keep 2–3 CORS-friendly servers for redundancy.
+                Blossom stores image bytes. Faro tries servers in order, so keep 2–3 CORS-friendly
+                servers for redundancy.
               </q-item-label>
               <q-input
                 v-model="draftBlossomServers"
@@ -48,7 +51,14 @@
                     </q-item>
                   </q-list>
                 </q-btn-dropdown>
-                <q-btn flat dense no-caps color="dark" label="Reset defaults" @click="resetBlossomServers" />
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  color="dark"
+                  label="Reset defaults"
+                  @click="resetBlossomServers"
+                />
               </div>
             </q-item-section>
             <q-item-section side>
@@ -63,7 +73,8 @@
             <q-item-section>
               <q-item-label>Relays</q-item-label>
               <q-item-label caption>
-                Used for profile, following, feed reads, and publishing. Faro falls back to defaults if this is empty or invalid.
+                Used for profile, following, feed reads, and publishing. Faro falls back to defaults
+                if this is empty or invalid.
               </q-item-label>
               <q-input
                 v-model="draftRelays"
@@ -75,11 +86,25 @@
                 hint="One per line or comma-separated. Defaults include Damus, nos.lol, Primal, and nostr.band."
               />
               <div class="row q-gutter-xs q-mt-sm">
-                <q-btn flat dense no-caps color="dark" label="Reset defaults" @click="resetRelays" />
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  color="dark"
+                  label="Reset defaults"
+                  @click="resetRelays"
+                />
               </div>
             </q-item-section>
             <q-item-section side>
-              <q-btn unelevated dense no-caps color="dark" label="Save" @click="saveRelaySettings" />
+              <q-btn
+                unelevated
+                dense
+                no-caps
+                color="dark"
+                label="Save"
+                @click="saveRelaySettings"
+              />
             </q-item-section>
           </q-item>
 
@@ -89,7 +114,10 @@
             </q-item-section>
             <q-item-section>
               <q-item-label>Notifications</q-item-label>
-              <q-item-label caption>Next step: keep a lightweight subscription open and show “X new posts” instead of auto-jumping the feed.</q-item-label>
+              <q-item-label caption
+                >Next step: keep a lightweight subscription open and show “X new posts” instead of
+                auto-jumping the feed.</q-item-label
+              >
             </q-item-section>
             <q-item-section side>
               <q-toggle v-model="notificationsEnabled" disable />

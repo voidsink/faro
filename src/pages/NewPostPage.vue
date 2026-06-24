@@ -22,11 +22,18 @@
               <div class="col-12 col-sm">
                 <div class="text-weight-bold">Login before publishing</div>
                 <div class="text-caption text-blue-grey-7">
-                  Use a signer to publish to Nostr, or create a local identity if you only want to save a draft on this device.
+                  Use a signer to publish to Nostr, or create a local identity if you only want to
+                  save a draft on this device.
                 </div>
               </div>
               <div class="col-12 col-sm-auto row q-gutter-sm">
-                <q-btn unelevated color="dark" no-caps label="Sign in" @click="loginDialogOpen = true" />
+                <q-btn
+                  unelevated
+                  color="dark"
+                  no-caps
+                  label="Sign in"
+                  @click="loginDialogOpen = true"
+                />
               </div>
             </q-card-section>
           </q-card>
@@ -111,7 +118,12 @@
             </q-stepper-navigation>
           </q-step>
 
-          <q-step :name="2" title="Frame" icon="crop" :done="Boolean(imagePreview && selectedRatio)">
+          <q-step
+            :name="2"
+            title="Frame"
+            icon="crop"
+            :done="Boolean(imagePreview && selectedRatio)"
+          >
             <div class="column q-gutter-md">
               <div
                 v-if="imagePreview"
@@ -185,10 +197,16 @@
                   <img :src="imagePreview" alt="Post preview" class="block fit" />
                 </div>
                 <div class="review-caption column q-pa-md">
-                  <div class="text-caption text-blue-grey-6 text-weight-bold text-uppercase">Review caption</div>
+                  <div class="text-caption text-blue-grey-6 text-weight-bold text-uppercase">
+                    Review caption
+                  </div>
                   <div class="text-weight-bold q-mt-xs">{{ displayName }}</div>
-                  <p v-if="caption.trim()" class="caption-preview q-mt-md q-mb-none">{{ caption.trim() }}</p>
-                  <p v-else class="caption-preview q-mt-md q-mb-none text-blue-grey-6">No caption.</p>
+                  <p v-if="caption.trim()" class="caption-preview q-mt-md q-mb-none">
+                    {{ caption.trim() }}
+                  </p>
+                  <p v-else class="caption-preview q-mt-md q-mb-none text-blue-grey-6">
+                    No caption.
+                  </p>
                 </div>
               </q-card-section>
             </q-card>
@@ -228,10 +246,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import LoginDialog from 'components/auth/LoginDialog.vue'
-import {
-  ASPECT_RATIOS,
-  processImageFile,
-} from 'src/services/localMedia'
+import { ASPECT_RATIOS, processImageFile } from 'src/services/localMedia'
 import { loadBlossomServers, uploadBlobToBlossom } from 'src/services/blossom'
 import { publishMediaPost } from 'src/services/nostrRelay'
 import { useSessionStore } from 'src/stores/session-store'
@@ -259,8 +274,12 @@ const previewFrameStyle = computed(() => ({
   aspectRatio: String(previewRatio.value),
   '--preview-ratio': previewRatio.value,
 }))
-const canSaveLocally = computed(() => Boolean(identity.value && imagePreview.value && !publishing.value))
-const canPublishToNostr = computed(() => Boolean(canSignNostrEvents.value && processedMedia.value?.blob && !publishing.value))
+const canSaveLocally = computed(() =>
+  Boolean(identity.value && imagePreview.value && !publishing.value),
+)
+const canPublishToNostr = computed(() =>
+  Boolean(canSignNostrEvents.value && processedMedia.value?.blob && !publishing.value),
+)
 
 onMounted(() => {
   session.init()
@@ -407,7 +426,10 @@ async function publishNostrPost() {
   message.value = 'Uploading image to Blossom…'
 
   try {
-    const uploadResult = await uploadBlobToBlossom(processedMedia.value, { serverUrls: blossomServers, signer })
+    const uploadResult = await uploadBlobToBlossom(processedMedia.value, {
+      serverUrls: blossomServers,
+      signer,
+    })
     if (!uploadResult.ok) {
       message.value = uploadResult.error || 'Blossom upload failed.'
       return

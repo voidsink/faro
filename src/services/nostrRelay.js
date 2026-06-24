@@ -9,7 +9,6 @@ export const DEFAULT_RELAYS = [
 ]
 export const RELAYS_STORAGE_KEY = 'faro-relays'
 
-
 const DEFAULT_TIMEOUT_MS = 8000
 const MAX_VISUAL_EVENTS = 80
 const IMAGE_EXTENSIONS = '(?:jpe?g|png|webp|gif)'
@@ -23,7 +22,11 @@ function uniqueStrings(values) {
 
 export function normalizeRelays(relays = DEFAULT_RELAYS) {
   const normalized = uniqueStrings(relays)
-    .map((relay) => String(relay || '').trim().replace(/\/+$/, ''))
+    .map((relay) =>
+      String(relay || '')
+        .trim()
+        .replace(/\/+$/, ''),
+    )
     .filter((relay) => /^wss?:\/\//i.test(relay))
   return normalized.length ? normalized : [...DEFAULT_RELAYS]
 }
@@ -80,7 +83,9 @@ function nowSeconds() {
 }
 
 function eventReferencesId(event, eventId) {
-  return (event?.tags || []).some((tag) => Array.isArray(tag) && tag[0] === 'e' && tag[1] === eventId)
+  return (event?.tags || []).some(
+    (tag) => Array.isArray(tag) && tag[0] === 'e' && tag[1] === eventId,
+  )
 }
 
 function isPositiveReaction(event) {
@@ -148,7 +153,11 @@ export function extractImageUrls(event) {
   return uniqueStrings(urls)
 }
 
-export function requestEvents({ relays = DEFAULT_RELAYS, filters = [], timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+export function requestEvents({
+  relays = DEFAULT_RELAYS,
+  filters = [],
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+} = {}) {
   const relayUrls = normalizeRelays(relays)
   const safeFilters = Array.isArray(filters) ? filters.filter(Boolean) : []
 
@@ -274,9 +283,7 @@ export async function fetchFollowing(pubkey, options = {}) {
 
 export function relayHintsFromFollowingEvent(event) {
   return normalizeRelays(
-    (event?.tags || [])
-      .filter((tag) => tag[0] === 'p' && tag[2])
-      .map((tag) => tag[2]),
+    (event?.tags || []).filter((tag) => tag[0] === 'p' && tag[2]).map((tag) => tag[2]),
   )
 }
 
@@ -361,7 +368,10 @@ export function buildReactionEvent(rootEvent) {
   return {
     kind: 7,
     content: '+',
-    tags: [['e', rootEvent.id], ['p', rootEvent.pubkey]],
+    tags: [
+      ['e', rootEvent.id],
+      ['p', rootEvent.pubkey],
+    ],
   }
 }
 
@@ -369,7 +379,10 @@ export function buildReplyEvent(rootEvent, content) {
   return {
     kind: 1,
     content: String(content || '').trim(),
-    tags: [['e', rootEvent.id, '', 'root'], ['p', rootEvent.pubkey]],
+    tags: [
+      ['e', rootEvent.id, '', 'root'],
+      ['p', rootEvent.pubkey],
+    ],
   }
 }
 
@@ -487,7 +500,11 @@ export async function fetchInteractions(eventIds, options = {}) {
 
     const interactions = Object.fromEntries(
       ids.map((eventId) => {
-        const reactionSummary = extractReactionSummary(reactionEvents, eventId, options.viewerPubkey)
+        const reactionSummary = extractReactionSummary(
+          reactionEvents,
+          eventId,
+          options.viewerPubkey,
+        )
         return [
           eventId,
           {

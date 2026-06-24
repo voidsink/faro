@@ -152,9 +152,7 @@
               </div>
             </div>
           </div>
-          <div v-else class="text-caption text-blue-grey-5 q-mb-sm">
-            No comments loaded yet.
-          </div>
+          <div v-else class="text-caption text-blue-grey-5 q-mb-sm">No comments loaded yet.</div>
           <q-input
             ref="commentInput"
             v-model="commentDraft"
@@ -211,7 +209,9 @@ const props = defineProps({
 const emit = defineEmits(['like-post', 'comment-post'])
 
 const formattedDate = computed(() => props.formatDate(props.post.createdAt))
-const postImages = computed(() => props.post.images?.length ? props.post.images : [props.post.image].filter(Boolean))
+const postImages = computed(() =>
+  props.post.images?.length ? props.post.images : [props.post.image].filter(Boolean),
+)
 const replies = computed(() => props.interaction?.replies || [])
 const likeCount = computed(() => props.interaction?.count || 0)
 const likedIcon = computed(() => (props.interaction?.likedByMe ? 'favorite' : 'favorite_border'))
@@ -220,14 +220,17 @@ const likeTooltip = computed(() => (props.interaction?.likedByMe ? 'Liked by you
 const engagementLabel = computed(() => {
   const likes = likeCount.value
   const comments = replies.value.length
-  if (likes || comments) return `${likes} ${likes === 1 ? 'like' : 'likes'} · ${comments} ${comments === 1 ? 'comment' : 'comments'}`
+  if (likes || comments)
+    return `${likes} ${likes === 1 ? 'like' : 'likes'} · ${comments} ${comments === 1 ? 'comment' : 'comments'}`
   return props.post.nostr ? 'No Nostr reactions yet' : 'Local draft'
 })
 const commentsOpen = ref(false)
 const commentDraft = ref('')
 const commentInput = ref(null)
 const activeImage = ref(0)
-const activePostImage = computed(() => postImages.value[activeImage.value] || postImages.value[0] || '')
+const activePostImage = computed(
+  () => postImages.value[activeImage.value] || postImages.value[0] || '',
+)
 const captionExpanded = ref(false)
 const captionLong = computed(() => {
   const text = props.post.caption?.trim()

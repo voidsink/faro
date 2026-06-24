@@ -29,7 +29,13 @@ export function buildBlossomUploadUrl(serverUrl) {
   return normalized.endsWith('/upload') ? normalized : `${normalized}/upload`
 }
 
-export function buildBlossomAuthEvent({ uploadUrl, sha256, mimeType, size, now = nowSeconds } = {}) {
+export function buildBlossomAuthEvent({
+  uploadUrl,
+  sha256,
+  mimeType,
+  size,
+  now = nowSeconds,
+} = {}) {
   const serverHost = hostFromUrl(uploadUrl)
   const tags = [
     ['t', 'upload'],
@@ -126,20 +132,38 @@ function extractUploadedUrl(response, serverUrl, sha256) {
   return fallback
 }
 
-export async function uploadBlobToBlossom(media, { serverUrl, serverUrls, signer = globalThis.window?.nostr, fetchImpl = fetch } = {}) {
-  const servers = normalizeBlossomServers(serverUrls || (serverUrl ? [serverUrl] : loadBlossomServers()))
+export async function uploadBlobToBlossom(
+  media,
+  { serverUrl, serverUrls, signer = globalThis.window?.nostr, fetchImpl = fetch } = {},
+) {
+  const servers = normalizeBlossomServers(
+    serverUrls || (serverUrl ? [serverUrl] : loadBlossomServers()),
+  )
   const attempts = []
 
   for (const server of servers) {
-    const result = await uploadBlobToSingleBlossomServer(media, { serverUrl: server, signer, fetchImpl })
+    const result = await uploadBlobToSingleBlossomServer(media, {
+      serverUrl: server,
+      signer,
+      fetchImpl,
+    })
     attempts.push({ serverUrl: server, ok: result.ok, error: result.error || '' })
     if (result.ok) return { ...result, attempts }
   }
 
-  return { ok: false, attempts, error: attempts.map((attempt) => `${attempt.serverUrl}: ${attempt.error}`).join('; ') || 'Blossom upload failed.' }
+  return {
+    ok: false,
+    attempts,
+    error:
+      attempts.map((attempt) => `${attempt.serverUrl}: ${attempt.error}`).join('; ') ||
+      'Blossom upload failed.',
+  }
 }
 
-async function uploadBlobToSingleBlossomServer(media, { serverUrl, signer = globalThis.window?.nostr, fetchImpl = fetch } = {}) {
+async function uploadBlobToSingleBlossomServer(
+  media,
+  { serverUrl, signer = globalThis.window?.nostr, fetchImpl = fetch } = {},
+) {
   const normalizedServer = normalizeBlossomServerUrl(serverUrl)
   const uploadUrl = buildBlossomUploadUrl(normalizedServer)
 
@@ -184,7 +208,8 @@ async function uploadBlobToSingleBlossomServer(media, { serverUrl, signer = glob
       body = null
     }
 
-    const url = body?.url || body?.data?.url || extractUploadedUrl(response, normalizedServer, media.sha256)
+    const url =
+      body?.url || body?.data?.url || extractUploadedUrl(response, normalizedServer, media.sha256)
     return {
       ok: true,
       url,

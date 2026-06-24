@@ -4,12 +4,13 @@ import { authLabelForSource, safeIdentityForStorage } from 'src/services/auth/id
 import { loginWithNip07 as requestNip07Login, nip07Signer } from 'src/services/auth/nip07'
 import { parseRemoteSignerUrl } from 'src/services/auth/nip46'
 import { pomegranateUnavailableMessage } from 'src/services/auth/pomegranate'
-import { createKeypair, keypairFromSecretKey, makeLocalSigner, parseSecretKey } from 'src/services/auth/secretKey'
 import {
-  clearLocalPosts,
-  loadLocalPosts,
-  saveLocalPostsWithPruning,
-} from 'src/services/localMedia'
+  createKeypair,
+  keypairFromSecretKey,
+  makeLocalSigner,
+  parseSecretKey,
+} from 'src/services/auth/secretKey'
+import { clearLocalPosts, loadLocalPosts, saveLocalPostsWithPruning } from 'src/services/localMedia'
 import {
   fetchFollowing,
   fetchInteractions,
@@ -129,8 +130,10 @@ export const useSessionStore = defineStore('session', {
 
     canSignNostrEvents(state) {
       if (!state.identity?.pubkey) return false
-      if (state.identity.source === 'nip07') return Boolean(typeof window !== 'undefined' && window.nostr?.signEvent)
-      if (state.identity.source === 'local-key' || state.identity.source === 'nsec') return Boolean(state.secretKey)
+      if (state.identity.source === 'nip07')
+        return Boolean(typeof window !== 'undefined' && window.nostr?.signEvent)
+      if (state.identity.source === 'local-key' || state.identity.source === 'nsec')
+        return Boolean(state.secretKey)
       return false
     },
 
@@ -141,7 +144,9 @@ export const useSessionStore = defineStore('session', {
     userPosts(state) {
       const pubkey = state.identity?.pubkey
       if (!pubkey) return [...state.localPosts]
-      return [...state.localPosts, ...state.relayPosts].filter((post) => post.author?.pubkey === pubkey)
+      return [...state.localPosts, ...state.relayPosts].filter(
+        (post) => post.author?.pubkey === pubkey,
+      )
     },
 
     namedPeople(state) {
@@ -252,7 +257,10 @@ export const useSessionStore = defineStore('session', {
 
     currentSigner() {
       if (this.identity?.source === 'nip07') return nip07Signer(window)
-      if ((this.identity?.source === 'local-key' || this.identity?.source === 'nsec') && this.secretKey) {
+      if (
+        (this.identity?.source === 'local-key' || this.identity?.source === 'nsec') &&
+        this.secretKey
+      ) {
         return makeLocalSigner(this.secretKey)
       }
       return null
@@ -306,7 +314,9 @@ export const useSessionStore = defineStore('session', {
       this.relayProfile = normalizeProfile(cache.relayProfile || {})
       this.following = Array.isArray(cache.following) ? cache.following : []
       this.followers = Array.isArray(cache.followers) ? cache.followers : []
-      this.relayPosts = this.dedupePostsById(Array.isArray(cache.relayPosts) ? cache.relayPosts : [])
+      this.relayPosts = this.dedupePostsById(
+        Array.isArray(cache.relayPosts) ? cache.relayPosts : [],
+      )
       this.interactionsByEventId = cache.interactionsByEventId || {}
       this.relayCursor = cache.relayCursor || this.cursorFromPosts(this.relayPosts)
       this.hasMoreRelayPosts = Boolean(cache.hasMoreRelayPosts)
@@ -355,7 +365,9 @@ export const useSessionStore = defineStore('session', {
           created_at: event.created_at,
         },
       }
-      this.relayPosts = [post, ...this.relayPosts.filter((item) => item.id !== post.id)].sort(newestFirst)
+      this.relayPosts = [post, ...this.relayPosts.filter((item) => item.id !== post.id)].sort(
+        newestFirst,
+      )
       this.saveRelayCache()
       return post
     },
@@ -376,7 +388,10 @@ export const useSessionStore = defineStore('session', {
               fetchProfile(this.identity.pubkey),
               fetchFollowing(this.identity.pubkey),
             ])
-          : [{ ok: false, profile: {} }, { ok: false, pubkeys: [], relayHints: [] }]
+          : [
+              { ok: false, profile: {} },
+              { ok: false, pubkeys: [], relayHints: [] },
+            ]
 
         let refreshed = false
 
@@ -404,12 +419,9 @@ export const useSessionStore = defineStore('session', {
           await this.hydrateAuthorProfiles(pubkeys)
 
           const nextPosts = this.postsFromVisualEvents(events)
-          this.relayPosts = silent
-            ? nextPosts
-            : this.mergeRelayPosts(nextPosts)
+          this.relayPosts = silent ? nextPosts : this.mergeRelayPosts(nextPosts)
           await this.refreshInteractionsForPosts(this.relayPosts)
-          this.relayCursor = this.cursorFromEvents(events)
-            || this.cursorFromPosts(this.relayPosts)
+          this.relayCursor = this.cursorFromEvents(events) || this.cursorFromPosts(this.relayPosts)
           this.hasMoreRelayPosts = true
           refreshed = true
         }
@@ -457,7 +469,9 @@ export const useSessionStore = defineStore('session', {
         await this.hydrateAuthorProfiles(pubkeys)
 
         const existing = new Set(this.relayPosts.map((post) => post.id))
-        const nextPosts = this.postsFromVisualEvents(events).filter((post) => !existing.has(post.id))
+        const nextPosts = this.postsFromVisualEvents(events).filter(
+          (post) => !existing.has(post.id),
+        )
         this.relayPosts = this.mergeRelayPosts(nextPosts)
         await this.refreshInteractionsForPosts(nextPosts)
         this.relayCursor = this.cursorFromEvents(events) || this.cursorFromPosts(this.relayPosts)
@@ -469,7 +483,10 @@ export const useSessionStore = defineStore('session', {
     },
 
     mergeRelayPosts(posts) {
-      return this.dedupePostsById([...this.relayPosts, ...(posts || [])]).slice(0, RELAY_CACHE_LIMIT)
+      return this.dedupePostsById([...this.relayPosts, ...(posts || [])]).slice(
+        0,
+        RELAY_CACHE_LIMIT,
+      )
     },
 
     dedupePostsById(posts) {
@@ -494,7 +511,10 @@ export const useSessionStore = defineStore('session', {
 
     feedAuthors() {
       return this.identity?.pubkey
-        ? [this.identity.pubkey, ...this.following.filter((pubkey) => pubkey !== this.identity.pubkey)].slice(0, 100)
+        ? [
+            this.identity.pubkey,
+            ...this.following.filter((pubkey) => pubkey !== this.identity.pubkey),
+          ].slice(0, 100)
         : []
     },
 
@@ -537,7 +557,9 @@ export const useSessionStore = defineStore('session', {
     },
 
     async hydrateAuthorProfiles(pubkeys) {
-      const missing = pubkeys.filter((pubkey) => pubkey && !this.authorProfiles[pubkey]).slice(0, 20)
+      const missing = pubkeys
+        .filter((pubkey) => pubkey && !this.authorProfiles[pubkey])
+        .slice(0, 20)
       if (!missing.length) return
       const entries = await Promise.all(
         missing.map(async (pubkey) => {
@@ -565,7 +587,10 @@ export const useSessionStore = defineStore('session', {
       } catch {
         this.authorProfiles = {
           ...this.authorProfiles,
-          [hexPubkey]: { ...normalizeProfile(this.authorProfiles[hexPubkey] || {}), __fetched: true },
+          [hexPubkey]: {
+            ...normalizeProfile(this.authorProfiles[hexPubkey] || {}),
+            __fetched: true,
+          },
         }
       }
     },
@@ -595,10 +620,9 @@ export const useSessionStore = defineStore('session', {
         .map((event) => ({
           id: event.id,
           author: this.authorForPubkey(event.pubkey),
-          caption: event.imageUrls.reduce(
-            (content, image) => content.replace(image, ''),
-            event.content || '',
-          ).trim(),
+          caption: event.imageUrls
+            .reduce((content, image) => content.replace(image, ''), event.content || '')
+            .trim(),
           image: event.imageUrls[0],
           images: event.imageUrls,
           ratio: '1:1',
@@ -666,7 +690,11 @@ export const useSessionStore = defineStore('session', {
       }
       if (this.interactionsByEventId[rootEvent.id]?.likedByMe) return
 
-      const current = this.interactionsByEventId[rootEvent.id] || { count: 0, likedByMe: false, replies: [] }
+      const current = this.interactionsByEventId[rootEvent.id] || {
+        count: 0,
+        likedByMe: false,
+        replies: [],
+      }
       this.interactionsByEventId = {
         ...this.interactionsByEventId,
         [rootEvent.id]: { ...current, count: current.count + 1, likedByMe: true },
@@ -710,7 +738,11 @@ export const useSessionStore = defineStore('session', {
         return false
       }
 
-      const current = this.interactionsByEventId[rootEvent.id] || { count: 0, likedByMe: false, replies: [] }
+      const current = this.interactionsByEventId[rootEvent.id] || {
+        count: 0,
+        likedByMe: false,
+        replies: [],
+      }
       const reply = {
         id: result.event.id,
         eventId: rootEvent.id,
