@@ -115,8 +115,8 @@ function wrapRemoteSigner(bunkerSigner, parsed, accountPubkey, clientSecretKey) 
     signEvent: (event) =>
       withTimeout(
         bunkerSigner.signEvent(event),
-        90000,
-        'Remote signer did not approve the signing request in time.',
+        30000,
+        'Remote signer did not approve the signing request within 30 seconds.',
       ),
     close: () => bunkerSigner.close(),
   }
@@ -179,8 +179,8 @@ class LegacyNip04RemoteSigner {
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         this.listeners.delete(id)
-        reject(new Error('Remote signer did not approve the signing request in time.'))
-      }, 90000)
+        reject(new Error('Remote signer did not approve the signing request within 30 seconds.'))
+      }, 30000)
       this.listeners.set(id, {
         resolve: (value) => {
           clearTimeout(timeoutId)
