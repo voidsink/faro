@@ -4,6 +4,7 @@ import {
   BLOSSOM_SERVER_STORAGE_KEY,
   buildBlossomAuthEvent,
   buildBlossomUploadUrl,
+  loadBlossomServers,
   normalizeBlossomServerUrl,
 } from '../src/services/blossom.js'
 
@@ -49,4 +50,25 @@ test('buildBlossomAuthEvent creates a BUD-11 upload authorization event', () => 
 
 test('BLOSSOM_SERVER_STORAGE_KEY is app-specific', () => {
   assert.equal(BLOSSOM_SERVER_STORAGE_KEY, 'faro-blossom-server')
+})
+
+test('loadBlossomServers uses all defaults when no setting is saved', () => {
+  const previousLocalStorage = globalThis.localStorage
+  globalThis.localStorage = {
+    getItem: () => null,
+  }
+
+  try {
+    assert.deepEqual(loadBlossomServers(), [
+      'https://cdn.nostrverse.net',
+      'https://cdn.satellite.earth',
+      'https://blssm.us',
+    ])
+  } finally {
+    if (previousLocalStorage === undefined) {
+      delete globalThis.localStorage
+    } else {
+      globalThis.localStorage = previousLocalStorage
+    }
+  }
 })

@@ -70,7 +70,7 @@ export function loadBlossomServer() {
 export function loadBlossomServers() {
   try {
     const stored = localStorage.getItem(BLOSSOM_SERVER_STORAGE_KEY)
-    if (!stored) return [DEFAULT_BLOSSOM_SERVERS[0]]
+    if (!stored) return [...DEFAULT_BLOSSOM_SERVERS]
 
     try {
       const parsed = JSON.parse(stored)
