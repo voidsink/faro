@@ -189,7 +189,7 @@
 
           <q-step :name="4" title="Post" icon="send">
             <q-banner
-              v-if="identity && !hasActiveNostrSigner"
+              v-if="identity && !hasActiveNostrSigner && !identity.clientSecretKeyHex"
               rounded
               dense
               class="faro-warning q-mb-md"
@@ -289,7 +289,11 @@ const canSaveLocally = computed(() =>
   Boolean(identity.value && imagePreview.value && !publishing.value),
 )
 const canAttemptNostrPublish = computed(() =>
-  Boolean(processedMedia.value?.blob && hasActiveNostrSigner.value && !publishing.value),
+  Boolean(
+    processedMedia.value?.blob &&
+      !publishing.value &&
+      (hasActiveNostrSigner.value || identity.value?.clientSecretKeyHex),
+  ),
 )
 const hasActiveNostrSigner = computed(() => Boolean(canSignNostrEvents.value))
 
@@ -417,9 +421,9 @@ function serializableMedia(media) {
 }
 
 async function publishNostrPost() {
-  const signer = session.currentSigner()
+  const signer = await session.activeSigner('publishing to Nostr')
   if (!signer) {
-    message.value = session.requireSignerMessage('publishing to Nostr')
+    message.value = session.message || session.requireSignerMessage('publishing to Nostr')
     return
   }
   if (!processedMedia.value?.blob) {

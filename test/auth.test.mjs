@@ -12,11 +12,14 @@ import {
   parseSecretKey,
 } from '../src/services/auth/secretKey.js'
 import {
+  buildBunkerUrl,
   createNostrConnectToken,
   createRemoteSigner,
   isRemoteSignerUrl,
   parseRemoteSignerUrl,
   safeRemoteSignerIdentity,
+  secretKeyFromHex,
+  secretKeyToHex,
 } from '../src/services/auth/nip46.js'
 
 test('auth labels and signing sources cover Faro login methods', () => {
@@ -103,7 +106,7 @@ test('createRemoteSigner rejects pasted nostrconnect URLs without the matching c
   await assert.rejects(() => createRemoteSigner(token.uri), /matching in-memory client key/)
 })
 
-test('safeIdentityForStorage strips remote signer secrets', () => {
+test('safeIdentityForStorage keeps remote signer reconnect metadata but strips private keys', () => {
   const identity = safeIdentityForStorage({
     pubkey: 'abc',
     source: 'bunker',
@@ -113,13 +116,36 @@ test('safeIdentityForStorage strips remote signer secrets', () => {
     secret: 'shh',
     signerPubkey: 'pubkey',
     relays: ['wss://relay'],
+    bunkerUrl: 'bunker://pubkey?relay=wss%3A%2F%2Frelay',
+    clientSecretKeyHex: '01'.repeat(32),
+    encryption: 'nip04',
   })
   assert.deepEqual(identity, {
     pubkey: 'abc',
     source: 'bunker',
     signerPubkey: 'pubkey',
     relays: ['wss://relay'],
+    bunkerUrl: 'bunker://pubkey?relay=wss%3A%2F%2Frelay',
+    clientSecretKeyHex: '01'.repeat(32),
+    encryption: 'nip04',
   })
+})
+
+test('remote signer reconnect helpers persist bunker pointer and client key', () => {
+  const secretKey = Uint8Array.from(Array.from({ length: 32 }, (_, index) => index + 1))
+  const hex = secretKeyToHex(secretKey)
+  assert.deepEqual(secretKeyFromHex(hex), secretKey)
+
+  const url = buildBunkerUrl({
+    signerPubkey: 'd'.repeat(64),
+    relays: ['wss://relay.example'],
+    secret: 'one-time-secret',
+  })
+  const parsed = parseRemoteSignerUrl(url)
+  assert.equal(parsed.type, 'bunker')
+  assert.equal(parsed.signerPubkey, 'd'.repeat(64))
+  assert.deepEqual(parsed.relays, ['wss://relay.example'])
+  assert.equal(parsed.secret, '')
 })
 
 test('safeRemoteSignerIdentity keeps only safe metadata', () => {

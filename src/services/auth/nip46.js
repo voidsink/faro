@@ -7,6 +7,23 @@ import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from 'nos
 const HEX_64 = /^[0-9a-f]{64}$/i
 const DEFAULT_NOSTR_CONNECT_PERMS = ['sign_event:1', 'sign_event:7', 'sign_event:24242']
 
+export function secretKeyToHex(secretKey) {
+  return [...secretKey].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+export function secretKeyFromHex(value = '') {
+  const hex = String(value || '').trim()
+  if (!HEX_64.test(hex)) throw new Error('Invalid remote signer client key.')
+  return Uint8Array.from(hex.match(/.{2}/g).map((byte) => parseInt(byte, 16)))
+}
+
+export function buildBunkerUrl({ signerPubkey, relays = [] } = {}) {
+  if (!HEX_64.test(String(signerPubkey || ''))) return ''
+  const url = new URL(`bunker://${signerPubkey}`)
+  relays.filter(Boolean).forEach((relay) => url.searchParams.append('relay', relay))
+  return url.toString()
+}
+
 function randomSecret() {
   const bytes = new Uint8Array(12)
   globalThis.crypto?.getRandomValues?.(bytes)
@@ -111,6 +128,9 @@ function wrapRemoteSigner(bunkerSigner, parsed, accountPubkey, clientSecretKey) 
     relays,
     signerPubkey,
     clientPubkey: getPublicKey(clientSecretKey),
+    clientSecretKeyHex: secretKeyToHex(clientSecretKey),
+    bunkerUrl: buildBunkerUrl({ signerPubkey, relays }),
+    encryption: bunkerSigner.encryption || 'nip44',
     getPublicKey: () => Promise.resolve(accountPubkey),
     signEvent: (event) =>
       withTimeout(
@@ -127,6 +147,7 @@ class LegacyNip04RemoteSigner {
     this.clientSecretKey = clientSecretKey
     this.remotePubkey = remotePubkey
     this.relays = relays
+    this.encryption = 'nip04'
     this.clientPubkey = getPublicKey(clientSecretKey)
     this.pool = new SimplePool()
     this.listeners = new Map()
@@ -202,6 +223,10 @@ class LegacyNip04RemoteSigner {
   async getPublicKey() {
     if (!this.cachedPubkey) this.cachedPubkey = await this.sendRequest('get_public_key', [])
     return this.cachedPubkey
+  }
+
+  async connect() {
+    await this.sendRequest('connect', [this.remotePubkey, ''])
   }
 
   async signEvent(event) {
@@ -283,12 +308,21 @@ export async function createRemoteSigner(input, options = {}) {
       if (!bunkerPointer) {
         throw new Error('Could not parse bunker URL.')
       }
-      bunkerSigner = BunkerSigner.fromBunker(clientSecretKey, bunkerPointer, { onauth })
-      await withTimeout(
-        bunkerSigner.connect(),
-        timeoutMs,
-        'Remote signer connection timed out. Check the bunker app and relay.',
-      )
+      bunkerSigner =
+        options.encryption === 'nip04'
+          ? new LegacyNip04RemoteSigner({
+              clientSecretKey,
+              remotePubkey: bunkerPointer.pubkey,
+              relays: bunkerPointer.relays,
+            })
+          : BunkerSigner.fromBunker(clientSecretKey, bunkerPointer, { onauth })
+      if (!options.isReconnect) {
+        await withTimeout(
+          bunkerSigner.connect(),
+          timeoutMs,
+          'Remote signer connection timed out. Check the bunker app and relay.',
+        )
+      }
     } else if (parsed.type === 'nostrconnect') {
       bunkerSigner = await Promise.any([
         BunkerSigner.fromURI(clientSecretKey, parsed.raw, { onauth }, abortSignal || timeoutMs),
@@ -298,11 +332,11 @@ export async function createRemoteSigner(input, options = {}) {
       throw new Error(`Unsupported remote signer type: ${parsed.type}`)
     }
 
-    const accountPubkey = await withTimeout(
+    const accountPubkey = options.accountPubkey || (await withTimeout(
       bunkerSigner.getPublicKey(),
       timeoutMs,
       'Remote signer did not return a public key in time.',
-    )
+    ))
     return wrapRemoteSigner(bunkerSigner, parsed, accountPubkey, clientSecretKey)
   } catch (error) {
     try {

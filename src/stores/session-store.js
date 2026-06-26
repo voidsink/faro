@@ -2,7 +2,10 @@ import { acceptHMRUpdate, defineStore } from 'pinia'
 import { decode, npubEncode } from 'nostr-tools/nip19'
 import { authLabelForSource, safeIdentityForStorage } from 'src/services/auth/identity'
 import { loginWithNip07 as requestNip07Login, nip07Signer } from 'src/services/auth/nip07'
-import { createRemoteSigner } from 'src/services/auth/nip46'
+import {
+  createRemoteSigner,
+  secretKeyFromHex,
+} from 'src/services/auth/nip46'
 import { pomegranateUnavailableMessage } from 'src/services/auth/pomegranate'
 import {
   createKeypair,
@@ -184,6 +187,7 @@ export const useSessionStore = defineStore('session', {
       this.loadRelayCache()
       this.initialized = true
 
+      this.reconnectRemoteSigner({ silent: true })
       this.refreshFromNostr({ silent: true })
     },
 
@@ -256,7 +260,10 @@ export const useSessionStore = defineStore('session', {
           pubkey: signer.pubkey,
           signerPubkey: signer.signerPubkey,
           relays: signer.relays,
-          type: signer.type,
+          type: 'bunker',
+          bunkerUrl: signer.bunkerUrl,
+          clientSecretKeyHex: signer.clientSecretKeyHex,
+          encryption: signer.encryption,
         })
         this.message = `Connected to remote signer for ${shortKey(signer.pubkey)}.`
         await this.refreshFromNostr()
@@ -286,6 +293,62 @@ export const useSessionStore = defineStore('session', {
       } catch (error) {
         this.message = error?.message || 'Could not import private key.'
       }
+    },
+
+    async reconnectRemoteSigner({ silent = false } = {}) {
+      if (!(this.identity?.source === 'bunker' || this.identity?.source === 'pomegranate')) return false
+      if (this.remoteSigner?.pubkey === this.identity.pubkey) return true
+      if (!this.identity.bunkerUrl || !this.identity.clientSecretKeyHex) {
+        if (!silent) this.message = 'Remote signer session needs a fresh sign-in.'
+        return false
+      }
+
+      this.bunkerLoading = true
+      if (!silent) this.message = 'Reconnecting remote signer…'
+      try {
+        this.closeRemoteSigner()
+        const signer = await createRemoteSigner(this.identity.bunkerUrl, {
+          clientSecretKey: secretKeyFromHex(this.identity.clientSecretKeyHex),
+          encryption: this.identity.encryption,
+          isReconnect: true,
+          accountPubkey: this.identity.pubkey,
+          timeoutMs: 15000,
+        })
+        if (signer.pubkey !== this.identity.pubkey) {
+          await signer.close?.()
+          throw new Error('Remote signer returned a different account.')
+        }
+        this.remoteSigner = signer
+        this.secretKey = null
+        this.saveIdentity({
+          ...this.identity,
+          source: this.identity.source,
+          pubkey: signer.pubkey,
+          signerPubkey: signer.signerPubkey,
+          relays: signer.relays,
+          type: 'bunker',
+          bunkerUrl: signer.bunkerUrl,
+          clientSecretKeyHex: signer.clientSecretKeyHex,
+          encryption: signer.encryption,
+        })
+        if (!silent) this.message = `Reconnected remote signer for ${shortKey(signer.pubkey)}.`
+        return true
+      } catch (error) {
+        this.remoteSigner = null
+        if (!silent) this.message = error?.message || 'Could not reconnect remote signer.'
+        return false
+      } finally {
+        this.bunkerLoading = false
+      }
+    },
+
+    async activeSigner(action = 'publishing to Nostr') {
+      let signer = this.currentSigner()
+      if (signer) return signer
+      await this.reconnectRemoteSigner({ silent: true })
+      signer = this.currentSigner()
+      if (!signer) this.message = this.requireSignerMessage(action)
+      return signer
     },
 
     currentSigner() {
@@ -733,9 +796,8 @@ export const useSessionStore = defineStore('session', {
         this.message = 'Only relay posts can be liked on Nostr.'
         return
       }
-      const signer = this.currentSigner()
+      const signer = await this.activeSigner('publishing Nostr likes')
       if (!signer) {
-        this.message = this.requireSignerMessage('publishing Nostr likes')
         return
       }
       if (this.interactionsByEventId[rootEvent.id]?.likedByMe) return
@@ -773,9 +835,8 @@ export const useSessionStore = defineStore('session', {
         return false
       }
       if (!text) return false
-      const signer = this.currentSigner()
+      const signer = await this.activeSigner('publishing Nostr comments')
       if (!signer) {
-        this.message = this.requireSignerMessage('publishing Nostr comments')
         return false
       }
 
