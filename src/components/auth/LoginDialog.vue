@@ -64,8 +64,8 @@
               v-model="bunkerValue"
               outlined
               dense
-              label="Remote signer / bunker"
-              placeholder="bunker://... or nostrconnect://..."
+              label="Paste remote signer / bunker URL"
+              placeholder="bunker://..."
             >
               <template #after>
                 <q-btn
@@ -79,6 +79,59 @@
                 />
               </template>
             </q-input>
+
+            <q-card flat bordered class="nostr-connect-card q-pa-md">
+              <div class="row items-start q-col-gutter-md">
+                <div class="col-12 col-sm">
+                  <div class="text-weight-bold">Connect by QR</div>
+                  <div class="option-caption no-margin q-mt-xs">
+                    Faro creates a temporary nostrconnect:// request. Scan it with a remote signer,
+                    then keep this dialog open while the signer approves.
+                  </div>
+                  <div class="row q-gutter-sm q-mt-md">
+                    <q-btn
+                      unelevated
+                      color="dark"
+                      no-caps
+                      icon="qr_code"
+                      label="Generate QR"
+                      :loading="bunkerLoading"
+                      @click="generateNostrConnect"
+                    />
+                    <q-btn
+                      v-if="nostrConnect.uri"
+                      flat
+                      color="dark"
+                      no-caps
+                      icon="content_copy"
+                      label="Copy"
+                      @click="copyNostrConnect"
+                    />
+                  </div>
+                </div>
+                <div v-if="nostrConnect.qr" class="col-12 col-sm-auto column items-center q-gutter-sm">
+                  <img :src="nostrConnect.qr" alt="Nostr Connect QR code" class="nostr-connect-qr" />
+                  <q-btn
+                    unelevated
+                    color="dark"
+                    no-caps
+                    label="Wait for signer"
+                    :loading="bunkerLoading"
+                    @click="connectGeneratedNostrConnect"
+                  />
+                </div>
+              </div>
+              <q-input
+                v-if="nostrConnect.uri"
+                :model-value="nostrConnect.uri"
+                readonly
+                autogrow
+                dense
+                outlined
+                class="q-mt-md nostr-connect-uri"
+                label="nostrconnect:// request"
+              />
+            </q-card>
 
             <q-btn
               outline
@@ -128,7 +181,10 @@
 </template>
 
 <script setup>
+import QRCode from 'qrcode'
 import { ref } from 'vue'
+import { createNostrConnectToken } from 'src/services/auth/nip46'
+import { loadRelays } from 'src/services/nostrRelay'
 
 defineProps({
   modelValue: {
@@ -145,7 +201,7 @@ defineProps({
   },
 })
 
-defineEmits([
+const emit = defineEmits([
   'update:modelValue',
   'login-google',
   'login-nip07',
@@ -157,6 +213,28 @@ defineEmits([
 const bunkerValue = ref('')
 const nsecValue = ref('')
 const showNsec = ref(false)
+const nostrConnect = ref({ uri: '', qr: '', clientSecretKey: null })
+
+async function generateNostrConnect() {
+  const token = createNostrConnectToken({ relays: loadRelays(), name: 'Faro' })
+  nostrConnect.value = {
+    ...token,
+    qr: await QRCode.toDataURL(token.uri, { margin: 2, width: 220 }),
+  }
+}
+
+function connectGeneratedNostrConnect() {
+  if (!nostrConnect.value.uri || !nostrConnect.value.clientSecretKey) return
+  emit('login-bunker', {
+    uri: nostrConnect.value.uri,
+    clientSecretKey: nostrConnect.value.clientSecretKey,
+  })
+}
+
+async function copyNostrConnect() {
+  if (!nostrConnect.value.uri) return
+  await navigator.clipboard?.writeText(nostrConnect.value.uri)
+}
 </script>
 
 <style scoped>
@@ -209,6 +287,26 @@ const showNsec = ref(false)
   color: #64748b;
   font-size: 0.82rem;
   line-height: 1.35;
+}
+
+.option-caption.no-margin {
+  margin-left: 0;
+}
+
+.nostr-connect-card {
+  border-radius: 18px;
+  border-color: rgba(20, 24, 28, 0.08);
+}
+
+.nostr-connect-qr {
+  width: 160px;
+  height: 160px;
+  border-radius: 14px;
+}
+
+.nostr-connect-uri :deep(textarea) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
 }
 
 .login-more-content {

@@ -12,6 +12,7 @@ import {
   parseSecretKey,
 } from '../src/services/auth/secretKey.js'
 import {
+  createNostrConnectToken,
   isRemoteSignerUrl,
   parseRemoteSignerUrl,
   safeRemoteSignerIdentity,
@@ -77,6 +78,23 @@ test('parseRemoteSignerUrl supports nostrconnect:// URLs', () => {
   assert.equal(parsed.signerPubkey, pubkey)
   assert.deepEqual(parsed.relays, ['wss://relay.example'])
   assert.equal(parsed.secret, 'shh')
+})
+
+test('createNostrConnectToken creates a QR-ready connection URI and matching client key', () => {
+  const token = createNostrConnectToken({
+    relays: ['wss://relay.example'],
+    secret: 'test-secret',
+    name: 'Faro Test',
+    url: 'https://faro.example',
+  })
+  const parsed = parseRemoteSignerUrl(token.uri)
+
+  assert.equal(parsed.type, 'nostrconnect')
+  assert.equal(parsed.signerPubkey, token.clientPubkey)
+  assert.deepEqual(parsed.relays, ['wss://relay.example'])
+  assert.equal(parsed.secret, 'test-secret')
+  assert.match(token.uri, /perms=sign_event%3A1%2Csign_event%3A7%2Csign_event%3A24242/)
+  assert.equal(token.clientSecretKey.length, 32)
 })
 
 test('safeIdentityForStorage strips remote signer secrets', () => {

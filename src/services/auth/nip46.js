@@ -1,7 +1,21 @@
-import { BunkerSigner, parseBunkerInput } from 'nostr-tools/nip46'
+import { BunkerSigner, createNostrConnectURI, parseBunkerInput } from 'nostr-tools/nip46'
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
 
 const HEX_64 = /^[0-9a-f]{64}$/i
+const DEFAULT_NOSTR_CONNECT_PERMS = ['sign_event:1', 'sign_event:7', 'sign_event:24242']
+
+function randomSecret() {
+  const bytes = new Uint8Array(12)
+  globalThis.crypto?.getRandomValues?.(bytes)
+  if (bytes.some(Boolean)) return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+  return Math.random().toString(36).slice(2) + Date.now().toString(36)
+}
+
+function generateClientSecretKey() {
+  const bytes = new Uint8Array(32)
+  globalThis.crypto?.getRandomValues?.(bytes)
+  return bytes.some(Boolean) ? bytes : generateSecretKey()
+}
 
 export function isRemoteSignerUrl(input = '') {
   const value = String(input || '').trim()
@@ -51,6 +65,29 @@ export function safeRemoteSignerIdentity(parsed, accountPubkey, source = 'bunker
   }
 }
 
+export function createNostrConnectToken({
+  relays = [],
+  secret = randomSecret(),
+  perms = DEFAULT_NOSTR_CONNECT_PERMS,
+  name = 'Faro',
+  url = typeof window !== 'undefined' ? window.location.origin : '',
+  image = '',
+} = {}) {
+  const clientSecretKey = generateClientSecretKey()
+  const clientPubkey = getPublicKey(clientSecretKey)
+  const uri = createNostrConnectURI({
+    clientPubkey,
+    relays,
+    secret,
+    perms,
+    name,
+    url,
+    image,
+  })
+
+  return { uri, clientSecretKey, clientPubkey, secret, relays, perms }
+}
+
 function withTimeout(promise, timeoutMs, message) {
   let timeoutId
   const timeout = new Promise((_, reject) => {
@@ -79,7 +116,7 @@ function wrapRemoteSigner(bunkerSigner, parsed, accountPubkey, clientSecretKey) 
 
 export async function createRemoteSigner(input, options = {}) {
   const parsed = parseRemoteSignerUrl(input)
-  const clientSecretKey = generateSecretKey()
+  const clientSecretKey = options.clientSecretKey || generateSecretKey()
   const { timeoutMs = 60000, onauth } = options
 
   let bunkerSigner

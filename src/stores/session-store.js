@@ -236,11 +236,18 @@ export const useSessionStore = defineStore('session', {
     },
 
     async loginWithBunker(bunkerUrl) {
+      const remoteSignerInput =
+        typeof bunkerUrl === 'object' && bunkerUrl !== null
+          ? bunkerUrl
+          : { uri: bunkerUrl, clientSecretKey: null }
       this.bunkerLoading = true
       this.message = 'Connecting to remote signer…'
       try {
         this.closeRemoteSigner()
-        const signer = await createRemoteSigner(bunkerUrl, { timeoutMs: 60000 })
+        const signer = await createRemoteSigner(remoteSignerInput.uri, {
+          timeoutMs: 60000,
+          clientSecretKey: remoteSignerInput.clientSecretKey,
+        })
         this.remoteSigner = signer
         this.secretKey = null
         this.saveIdentity({
