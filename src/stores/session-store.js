@@ -8,7 +8,6 @@ import {
 } from 'src/services/auth/nip46'
 import {
   loginWithPomegranate,
-  pomegranateUnavailableMessage,
 } from 'src/services/auth/pomegranate'
 import {
   createKeypair,
