@@ -85,8 +85,8 @@
                 <div class="col-12 col-sm">
                   <div class="text-weight-bold">Connect by QR</div>
                   <div class="option-caption no-margin q-mt-xs">
-                    Faro creates a temporary nostrconnect:// request. Scan it with a remote signer,
-                    then keep this dialog open while the signer approves.
+                    Faro creates a temporary nostrconnect:// request and starts listening immediately.
+                    Scan the QR with your signer while this dialog stays open.
                   </div>
                   <div class="row q-gutter-sm q-mt-md">
                     <q-btn
@@ -94,7 +94,7 @@
                       color="dark"
                       no-caps
                       icon="qr_code"
-                      label="Generate QR"
+                      label="Generate QR & listen"
                       :loading="bunkerLoading"
                       @click="generateNostrConnect"
                     />
@@ -111,14 +111,7 @@
                 </div>
                 <div v-if="nostrConnect.qr" class="col-12 col-sm-auto column items-center q-gutter-sm">
                   <img :src="nostrConnect.qr" alt="Nostr Connect QR code" class="nostr-connect-qr" />
-                  <q-btn
-                    unelevated
-                    color="dark"
-                    no-caps
-                    label="Wait for signer"
-                    :loading="bunkerLoading"
-                    @click="connectGeneratedNostrConnect"
-                  />
+                  <div class="text-caption text-blue-grey-6 text-weight-bold">Waiting for signer approval…</div>
                 </div>
               </div>
               <q-input
@@ -234,6 +227,7 @@ async function generateNostrConnect() {
     qr: await toDataURL(token.uri, { margin: 2, width: 220 }),
     abortController: null,
   }
+  connectGeneratedNostrConnect()
 }
 
 function connectGeneratedNostrConnect() {

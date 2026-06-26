@@ -1,5 +1,8 @@
+import { SimplePool } from 'nostr-tools/pool'
+import { NostrConnect } from 'nostr-tools/kinds'
+import { decrypt as nip04Decrypt, encrypt as nip04Encrypt } from 'nostr-tools/nip04'
 import { BunkerSigner, createNostrConnectURI, parseBunkerInput } from 'nostr-tools/nip46'
-import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
+import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools/pure'
 
 const HEX_64 = /^[0-9a-f]{64}$/i
 const DEFAULT_NOSTR_CONNECT_PERMS = ['sign_event:1', 'sign_event:7', 'sign_event:24242']
@@ -98,8 +101,8 @@ function withTimeout(promise, timeoutMs, message) {
 }
 
 function wrapRemoteSigner(bunkerSigner, parsed, accountPubkey, clientSecretKey) {
-  const signerPubkey = bunkerSigner.bp?.pubkey || parsed.signerPubkey
-  const relays = bunkerSigner.bp?.relays?.length ? bunkerSigner.bp.relays : parsed.relays
+  const signerPubkey = bunkerSigner.bp?.pubkey || bunkerSigner.remotePubkey || parsed.signerPubkey
+  const relays = bunkerSigner.bp?.relays?.length ? bunkerSigner.bp.relays : bunkerSigner.relays || parsed.relays
 
   return {
     pubkey: accountPubkey,
@@ -112,6 +115,138 @@ function wrapRemoteSigner(bunkerSigner, parsed, accountPubkey, clientSecretKey) 
     signEvent: (event) => bunkerSigner.signEvent(event),
     close: () => bunkerSigner.close(),
   }
+}
+
+class LegacyNip04RemoteSigner {
+  constructor({ clientSecretKey, remotePubkey, relays }) {
+    this.clientSecretKey = clientSecretKey
+    this.remotePubkey = remotePubkey
+    this.relays = relays
+    this.clientPubkey = getPublicKey(clientSecretKey)
+    this.pool = new SimplePool()
+    this.listeners = new Map()
+    this.serial = 0
+    this.closed = false
+    this.subscription = this.pool.subscribe(
+      relays,
+      { kinds: [NostrConnect], authors: [remotePubkey], '#p': [this.clientPubkey], limit: 0 },
+      {
+        onevent: (event) => this.handleResponseEvent(event),
+      },
+    )
+  }
+
+  handleResponseEvent(event) {
+    if (!event.content?.includes('?iv=')) return
+    let payload
+    try {
+      payload = JSON.parse(nip04Decrypt(this.clientSecretKey, event.pubkey, event.content))
+    } catch {
+      return
+    }
+
+    const listener = this.listeners.get(payload.id)
+    if (!listener) return
+    this.listeners.delete(payload.id)
+    if (payload.error) listener.reject(new Error(payload.error))
+    else listener.resolve(payload.result)
+  }
+
+  async sendRequest(method, params = []) {
+    if (this.closed) throw new Error('this signer is not open anymore, create a new one')
+    this.serial += 1
+    const id = `faro-legacy-${this.serial}-${Math.random().toString(36).slice(2)}`
+    const content = nip04Encrypt(
+      this.clientSecretKey,
+      this.remotePubkey,
+      JSON.stringify({ id, method, params }),
+    )
+    const event = finalizeEvent(
+      {
+        kind: NostrConnect,
+        tags: [['p', this.remotePubkey]],
+        content,
+        created_at: Math.floor(Date.now() / 1000),
+      },
+      this.clientSecretKey,
+    )
+
+    return new Promise((resolve, reject) => {
+      this.listeners.set(id, { resolve, reject })
+      Promise.any(this.pool.publish(this.relays, event)).catch((error) => {
+        this.listeners.delete(id)
+        reject(error)
+      })
+    })
+  }
+
+  async getPublicKey() {
+    if (!this.cachedPubkey) this.cachedPubkey = await this.sendRequest('get_public_key', [])
+    return this.cachedPubkey
+  }
+
+  async signEvent(event) {
+    const response = await this.sendRequest('sign_event', [JSON.stringify(event)])
+    const signed = JSON.parse(response)
+    if (!verifyEvent(signed)) throw new Error(`event returned from bunker is improperly signed: ${response}`)
+    return signed
+  }
+
+  async close() {
+    this.closed = true
+    this.subscription?.close?.()
+    this.pool.close(this.relays)
+  }
+}
+
+function connectLegacyNip04FromUri(clientSecretKey, connectionUri, abortSignalOrTimeout = 60000) {
+  const uri = new URL(connectionUri)
+  const relays = uri.searchParams.getAll('relay')
+  const secret = uri.searchParams.get('secret') || ''
+  const clientPubkey = getPublicKey(clientSecretKey)
+  const pool = new SimplePool()
+
+  return new Promise((resolve, reject) => {
+    let done = false
+    let timeoutId = null
+    const finish = (callback, value) => {
+      if (done) return
+      done = true
+      if (timeoutId) clearTimeout(timeoutId)
+      subscription?.close?.()
+      pool.close(relays)
+      callback(value)
+    }
+    const subscription = pool.subscribe(
+      relays,
+      { kinds: [NostrConnect], '#p': [clientPubkey], limit: 0 },
+      {
+        onevent(event) {
+          if (!event.content?.includes('?iv=')) return
+          let response
+          try {
+            response = JSON.parse(nip04Decrypt(clientSecretKey, event.pubkey, event.content))
+          } catch {
+            return
+          }
+          if (response.result !== secret) return
+          finish(resolve, new LegacyNip04RemoteSigner({ clientSecretKey, remotePubkey: event.pubkey, relays }))
+        },
+        onclose() {
+          if (!done) finish(reject, new Error('subscription closed before legacy NIP-04 connection was established.'))
+        },
+      },
+    )
+
+    if (typeof abortSignalOrTimeout === 'number') {
+      timeoutId = setTimeout(
+        () => finish(reject, new Error('Remote signer connection timed out. Check the signer app and relay.')),
+        abortSignalOrTimeout,
+      )
+    } else if (abortSignalOrTimeout) {
+      abortSignalOrTimeout.addEventListener('abort', () => finish(reject, new Error('Remote signer connection cancelled.')), { once: true })
+    }
+  })
 }
 
 export async function createRemoteSigner(input, options = {}) {
@@ -136,7 +271,10 @@ export async function createRemoteSigner(input, options = {}) {
         'Remote signer connection timed out. Check the bunker app and relay.',
       )
     } else if (parsed.type === 'nostrconnect') {
-      bunkerSigner = await BunkerSigner.fromURI(clientSecretKey, parsed.raw, { onauth }, abortSignal || timeoutMs)
+      bunkerSigner = await Promise.any([
+        BunkerSigner.fromURI(clientSecretKey, parsed.raw, { onauth }, abortSignal || timeoutMs),
+        connectLegacyNip04FromUri(clientSecretKey, parsed.raw, abortSignal || timeoutMs),
+      ])
     } else {
       throw new Error(`Unsupported remote signer type: ${parsed.type}`)
     }
