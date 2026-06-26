@@ -32,7 +32,7 @@
             label="Continue with Google"
             @click="$emit('login-google')"
           >
-            <q-tooltip>Google-backed recovery with Pomegranate. Planned next.</q-tooltip>
+            <q-tooltip>Sign in with Google via Pomegranate (NIP-46 remote signer)</q-tooltip>
           </q-btn>
           <div class="option-caption">
             Easiest onboarding once Pomegranate is wired. Creates or recovers a Nostr identity.

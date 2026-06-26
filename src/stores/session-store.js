@@ -6,7 +6,10 @@ import {
   createRemoteSigner,
   secretKeyFromHex,
 } from 'src/services/auth/nip46'
-import { pomegranateUnavailableMessage } from 'src/services/auth/pomegranate'
+import {
+  loginWithPomegranate,
+  pomegranateUnavailableMessage,
+} from 'src/services/auth/pomegranate'
 import {
   createKeypair,
   keypairFromSecretKey,
@@ -235,8 +238,40 @@ export const useSessionStore = defineStore('session', {
       }
     },
 
-    loginWithGoogle() {
-      this.message = pomegranateUnavailableMessage()
+    async loginWithGoogle() {
+      const centralUrl = this.settings?.pomegranateCentral || 'https://promenade.fiatjaf.com'
+      this.bunkerLoading = true
+      this.message = 'Connecting to Pomegranate...'
+      try {
+        this.closeRemoteSigner()
+        const { auth, profile, bunkerUrl } = await loginWithPomegranate({
+          centralUrl,
+        })
+        const signer = await createRemoteSigner(bunkerUrl, { timeoutMs: 30000 })
+        this.remoteSigner = signer
+        this.secretKey = null
+        this.saveIdentity({
+          source: 'pomegranate',
+          pubkey: signer.pubkey,
+          signerPubkey: signer.signerPubkey,
+          relays: signer.relays,
+          type: 'bunker',
+          bunkerUrl: signer.bunkerUrl,
+          clientSecretKeyHex: signer.clientSecretKeyHex,
+          encryption: signer.encryption,
+          pomegranateCentral: auth.centralUrl,
+          pomegranateEmail: auth.email || profile.email,
+          pomegranateProfile: profile.name,
+        })
+        this.message = `Connected via Pomegranate for ${shortKey(signer.pubkey)}.`
+        await this.refreshFromNostr()
+      } catch (error) {
+        this.remoteSigner = null
+        this.message = error?.message || 'Pomegranate login failed.'
+        throw error
+      } finally {
+        this.bunkerLoading = false
+      }
     },
 
     async loginWithBunker(bunkerUrl) {
