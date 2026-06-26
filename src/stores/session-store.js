@@ -247,6 +247,7 @@ export const useSessionStore = defineStore('session', {
         const signer = await createRemoteSigner(remoteSignerInput.uri, {
           timeoutMs: 60000,
           clientSecretKey: remoteSignerInput.clientSecretKey,
+          abortSignal: remoteSignerInput.abortSignal,
         })
         this.remoteSigner = signer
         this.secretKey = null

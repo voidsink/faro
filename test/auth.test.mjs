@@ -13,6 +13,7 @@ import {
 } from '../src/services/auth/secretKey.js'
 import {
   createNostrConnectToken,
+  createRemoteSigner,
   isRemoteSignerUrl,
   parseRemoteSignerUrl,
   safeRemoteSignerIdentity,
@@ -95,6 +96,11 @@ test('createNostrConnectToken creates a QR-ready connection URI and matching cli
   assert.equal(parsed.secret, 'test-secret')
   assert.match(token.uri, /perms=sign_event%3A1%2Csign_event%3A7%2Csign_event%3A24242/)
   assert.equal(token.clientSecretKey.length, 32)
+})
+
+test('createRemoteSigner rejects pasted nostrconnect URLs without the matching client key', async () => {
+  const token = createNostrConnectToken({ relays: ['wss://relay.example'], secret: 'test-secret' })
+  await assert.rejects(() => createRemoteSigner(token.uri), /matching in-memory client key/)
 })
 
 test('safeIdentityForStorage strips remote signer secrets', () => {

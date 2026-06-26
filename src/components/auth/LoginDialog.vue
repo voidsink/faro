@@ -1,5 +1,5 @@
 <template>
-  <q-dialog :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)">
+  <q-dialog :model-value="modelValue" @update:model-value="handleDialogModelUpdate">
     <q-card class="login-card faro-surface">
       <q-card-section class="login-header row items-start no-wrap">
         <div class="login-mark column flex-center">F</div>
@@ -14,7 +14,7 @@
           round
           icon="close"
           aria-label="Close login"
-          @click="$emit('update:modelValue', false)"
+          @click="handleDialogModelUpdate(false)"
         />
       </q-card-section>
 
@@ -99,13 +99,13 @@
                       @click="generateNostrConnect"
                     />
                     <q-btn
-                      v-if="nostrConnect.uri"
+                      v-if="nostrConnect.abortController"
                       flat
-                      color="dark"
+                      color="negative"
                       no-caps
-                      icon="content_copy"
-                      label="Copy"
-                      @click="copyNostrConnect"
+                      icon="close"
+                      label="Cancel"
+                      @click="cancelNostrConnect"
                     />
                   </div>
                 </div>
@@ -130,6 +130,17 @@
                 outlined
                 class="q-mt-md nostr-connect-uri"
                 label="nostrconnect:// request"
+              />
+              <q-btn
+                v-if="nostrConnect.uri"
+                flat
+                dense
+                color="dark"
+                no-caps
+                icon="content_copy"
+                label="Copy connection string"
+                class="q-mt-sm"
+                @click="copyNostrConnect"
               />
             </q-card>
 
@@ -181,7 +192,7 @@
 </template>
 
 <script setup>
-import QRCode from 'qrcode'
+import { toDataURL } from 'qrcode'
 import { ref } from 'vue'
 import { createNostrConnectToken } from 'src/services/auth/nip46'
 import { loadRelays } from 'src/services/nostrRelay'
@@ -213,22 +224,37 @@ const emit = defineEmits([
 const bunkerValue = ref('')
 const nsecValue = ref('')
 const showNsec = ref(false)
-const nostrConnect = ref({ uri: '', qr: '', clientSecretKey: null })
+const nostrConnect = ref({ uri: '', qr: '', clientSecretKey: null, abortController: null })
 
 async function generateNostrConnect() {
+  cancelNostrConnect()
   const token = createNostrConnectToken({ relays: loadRelays(), name: 'Faro' })
   nostrConnect.value = {
     ...token,
-    qr: await QRCode.toDataURL(token.uri, { margin: 2, width: 220 }),
+    qr: await toDataURL(token.uri, { margin: 2, width: 220 }),
+    abortController: null,
   }
 }
 
 function connectGeneratedNostrConnect() {
   if (!nostrConnect.value.uri || !nostrConnect.value.clientSecretKey) return
+  const abortController = new AbortController()
+  nostrConnect.value = { ...nostrConnect.value, abortController }
   emit('login-bunker', {
     uri: nostrConnect.value.uri,
     clientSecretKey: nostrConnect.value.clientSecretKey,
+    abortSignal: abortController.signal,
   })
+}
+
+function cancelNostrConnect() {
+  nostrConnect.value.abortController?.abort?.()
+  nostrConnect.value = { uri: '', qr: '', clientSecretKey: null, abortController: null }
+}
+
+function handleDialogModelUpdate(value) {
+  if (!value) cancelNostrConnect()
+  emit('update:modelValue', value)
 }
 
 async function copyNostrConnect() {

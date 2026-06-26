@@ -116,8 +116,11 @@ function wrapRemoteSigner(bunkerSigner, parsed, accountPubkey, clientSecretKey) 
 
 export async function createRemoteSigner(input, options = {}) {
   const parsed = parseRemoteSignerUrl(input)
+  if (parsed.type === 'nostrconnect' && !options.clientSecretKey) {
+    throw new Error('Generated nostrconnect:// login requires the matching in-memory client key. Use the QR flow instead of pasting nostrconnect:// URLs.')
+  }
   const clientSecretKey = options.clientSecretKey || generateSecretKey()
-  const { timeoutMs = 60000, onauth } = options
+  const { timeoutMs = 60000, onauth, abortSignal } = options
 
   let bunkerSigner
   try {
@@ -133,7 +136,7 @@ export async function createRemoteSigner(input, options = {}) {
         'Remote signer connection timed out. Check the bunker app and relay.',
       )
     } else if (parsed.type === 'nostrconnect') {
-      bunkerSigner = await BunkerSigner.fromURI(clientSecretKey, parsed.raw, { onauth }, timeoutMs)
+      bunkerSigner = await BunkerSigner.fromURI(clientSecretKey, parsed.raw, { onauth }, abortSignal || timeoutMs)
     } else {
       throw new Error(`Unsupported remote signer type: ${parsed.type}`)
     }
