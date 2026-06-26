@@ -112,7 +112,12 @@ function wrapRemoteSigner(bunkerSigner, parsed, accountPubkey, clientSecretKey) 
     signerPubkey,
     clientPubkey: getPublicKey(clientSecretKey),
     getPublicKey: () => Promise.resolve(accountPubkey),
-    signEvent: (event) => bunkerSigner.signEvent(event),
+    signEvent: (event) =>
+      withTimeout(
+        bunkerSigner.signEvent(event),
+        90000,
+        'Remote signer did not approve the signing request in time.',
+      ),
     close: () => bunkerSigner.close(),
   }
 }
@@ -172,8 +177,22 @@ class LegacyNip04RemoteSigner {
     )
 
     return new Promise((resolve, reject) => {
-      this.listeners.set(id, { resolve, reject })
+      const timeoutId = setTimeout(() => {
+        this.listeners.delete(id)
+        reject(new Error('Remote signer did not approve the signing request in time.'))
+      }, 90000)
+      this.listeners.set(id, {
+        resolve: (value) => {
+          clearTimeout(timeoutId)
+          resolve(value)
+        },
+        reject: (error) => {
+          clearTimeout(timeoutId)
+          reject(error)
+        },
+      })
       Promise.any(this.pool.publish(this.relays, event)).catch((error) => {
+        clearTimeout(timeoutId)
         this.listeners.delete(id)
         reject(error)
       })

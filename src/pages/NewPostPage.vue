@@ -289,7 +289,7 @@ const canSaveLocally = computed(() =>
   Boolean(identity.value && imagePreview.value && !publishing.value),
 )
 const canAttemptNostrPublish = computed(() =>
-  Boolean(processedMedia.value?.blob && !publishing.value),
+  Boolean(processedMedia.value?.blob && hasActiveNostrSigner.value && !publishing.value),
 )
 const hasActiveNostrSigner = computed(() => Boolean(canSignNostrEvents.value))
 

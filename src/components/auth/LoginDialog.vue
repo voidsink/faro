@@ -186,11 +186,11 @@
 
 <script setup>
 import { toDataURL } from 'qrcode'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { createNostrConnectToken } from 'src/services/auth/nip46'
 import { loadRelays } from 'src/services/nostrRelay'
 
-defineProps({
+const props = defineProps({
   modelValue: {
     type: Boolean,
     default: false,
@@ -218,6 +218,20 @@ const bunkerValue = ref('')
 const nsecValue = ref('')
 const showNsec = ref(false)
 const nostrConnect = ref({ uri: '', qr: '', clientSecretKey: null, abortController: null })
+
+watch(
+  () => props.modelValue,
+  (isOpen) => {
+    if (!isOpen) cancelNostrConnect()
+  },
+)
+
+watch(
+  () => props.bunkerLoading,
+  (isLoading) => {
+    if (!isLoading && !props.modelValue) cancelNostrConnect()
+  },
+)
 
 async function generateNostrConnect() {
   cancelNostrConnect()
