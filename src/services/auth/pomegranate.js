@@ -1,10 +1,4 @@
-const TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000
-
 export const POMEGRANATE_STATUS = 'available'
-
-export function pomegranateUnavailableMessage() {
-  return 'Google login requires a Pomegranate central server. Please configure the server URL in settings.'
-}
 
 export function normalizePomegranateUrl(input = '') {
   const value = String(input || '').trim()
