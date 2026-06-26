@@ -462,7 +462,7 @@ export const useSessionStore = defineStore('session', {
     addPublishedRelayPost({ event, mediaUrl, media, caption }) {
       if (!event?.id || !mediaUrl) return null
       const post = {
-        id: `${event.id}-0`,
+        id: event.id,
         author: this.authorForPubkey(event.pubkey || this.identity?.pubkey || ''),
         caption: String(caption || '').trim(),
         image: mediaUrl,
