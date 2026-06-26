@@ -1,6 +1,6 @@
 <template>
   <q-card flat bordered class="faro-surface" data-testid="composer-card">
-    <q-card-section>
+    <q-card-section class="q-pb-none">
       <q-item class="q-px-none">
         <q-item-section avatar>
           <user-avatar
@@ -11,9 +11,9 @@
           />
         </q-item-section>
         <q-item-section>
-          <q-item-label class="text-weight-bold">Add post</q-item-label>
-          <q-item-label caption>{{
-            identity ? displayName : 'Login to unlock posting'
+          <q-item-label class="text-weight-bold">{{ identity ? displayName : 'Create post' }}</q-item-label>
+          <q-item-label caption class="text-blue-grey-6">{{
+            identity ? 'Share a visual moment' : 'Login to unlock posting'
           }}</q-item-label>
         </q-item-section>
         <q-item-section side>
@@ -21,7 +21,7 @@
             flat
             dense
             round
-            color="negative"
+            color="blue-grey-6"
             icon="delete_sweep"
             aria-label="Clear local posts"
             @click="$emit('clear-post-cache')"
@@ -32,9 +32,13 @@
       </q-item>
     </q-card-section>
 
-    <q-card-section class="q-pt-none">
-      <q-banner v-if="!identity" rounded dense class="bg-orange-1 text-brown-8 q-mb-md">
-        Login or create a local identity to enable posting.
+    <q-card-section>
+      <q-banner
+        v-if="!identity"
+        rounded
+        class="bg-orange-1 text-brown-8 q-mb-md"
+      >
+        Sign in or create a local identity to publish visuals.
       </q-banner>
 
       <input
@@ -46,16 +50,26 @@
         @change="$emit('select-image', $event)"
       />
 
-      <div class="row items-center q-gutter-sm q-mb-md">
-        <q-btn
-          unelevated
-          color="dark"
-          no-caps
-          icon="add_photo_alternate"
-          label="Add photo"
-          data-testid="image-picker"
-          @click="openImagePicker"
-        />
+      <div
+        v-if="!imagePreview"
+        class="upload-zone column flex-center text-center q-pa-xl q-mb-md rounded-borders cursor-pointer"
+        data-testid="image-picker"
+        @click="openImagePicker"
+      >
+        <q-icon name="add_photo_alternate" size="42px" color="blue-grey-4" />
+        <div class="text-weight-medium text-body2 q-mt-sm">Add a photo</div>
+        <div class="text-caption text-blue-grey-6">Tap to choose an image</div>
+      </div>
+
+      <div
+        v-else
+        class="overflow-hidden rounded-borders bg-grey-1 q-mx-auto q-mb-md"
+        :style="previewFrameStyle"
+      >
+        <q-img :src="imagePreview" alt="Selected preview" fit="contain" class="full-height" />
+      </div>
+
+      <div v-if="imagePreview" class="row justify-center q-mb-md">
         <q-btn-toggle
           :model-value="selectedRatio"
           unelevated
@@ -71,32 +85,26 @@
         />
       </div>
 
-      <div
-        v-if="imagePreview"
-        class="image-preview overflow-hidden bg-grey-1 q-mx-auto q-mb-md"
-        :style="previewFrameStyle"
-      >
-        <img :src="imagePreview" alt="Selected preview" class="block fit" />
-      </div>
-
       <q-form @submit.prevent="$emit('publish-post')">
         <q-input
           :model-value="caption"
           type="textarea"
           autogrow
           outlined
-          placeholder="Caption..."
+          rounded
+          placeholder="Write a caption..."
           data-testid="caption-input"
           @update:model-value="$emit('update:caption', $event)"
         />
 
         <q-btn
           unelevated
+          rounded
           color="dark"
           class="full-width q-mt-md text-weight-bold"
           no-caps
           :disable="!canPost"
-          label="Post locally"
+          label="Post"
           type="submit"
           data-testid="post-button"
         />
@@ -162,6 +170,8 @@ const ratioOptions = computed(() => props.ratios.map((ratio) => ({ label: ratio,
 const previewRatio = computed(() => props.ratioToNumber(props.selectedRatio))
 const previewFrameStyle = computed(() => ({
   aspectRatio: String(previewRatio.value),
+  maxHeight: '58vh',
+  width: 'min(100%, calc(58vh * var(--preview-ratio)))',
   '--preview-ratio': previewRatio.value,
 }))
 
@@ -193,14 +203,8 @@ async function setRatio(ratio) {
 </script>
 
 <style scoped>
-.image-preview {
-  width: min(100%, calc(58vh * var(--preview-ratio)));
-  max-height: 58vh;
-  border: 1.5px dashed rgba(0, 0, 0, 0.18);
-  border-radius: var(--faro-radius-md);
-}
-
-.image-preview img {
-  object-fit: contain;
+.upload-zone {
+  border: 1.5px dashed rgba(15, 23, 42, 0.16);
+  background: rgba(15, 23, 42, 0.02);
 }
 </style>

@@ -1,11 +1,12 @@
 <template>
   <q-page class="faro-page">
-    <div class="faro-page-inner index-content">
+    <div class="faro-page-inner">
       <app-top-bar
         :identity="identity"
         :active-profile="activeProfile"
         :display-name="displayName"
         :refreshing="refreshing"
+        class="q-mb-md"
         @refresh="refreshFeed"
       />
 
@@ -22,13 +23,6 @@
 
       <div class="row items-start justify-center q-col-gutter-md">
         <section class="col-12 col-md column q-gutter-y-md overflow-hidden">
-          <!-- <stories-strip
-            :identity="identity"
-            :active-profile="activeProfile"
-            :display-name="displayName"
-            :profiles="storyProfiles"
-          /> -->
-
           <visual-feed
             v-model:two-column-feed="twoColumnFeed"
             :posts="combinedFeed"
@@ -54,6 +48,9 @@
             :profile-subtitle="profileSubtitle"
             :auth-label="authLabel"
             :has-nip07="hasNip07"
+            :following-count="following.length"
+            :posts-count="localPosts.length + relayPosts.length"
+            :relays-count="3"
             @open-login="loginDialogOpen = true"
             @logout="session.logout"
           />
@@ -88,7 +85,6 @@ import AppTopBar from 'components/AppTopBar.vue'
 import LoginDialog from 'components/auth/LoginDialog.vue'
 import InsightsPanel from 'components/InsightsPanel.vue'
 import ProfilePanel from 'components/ProfilePanel.vue'
-//import StoriesStrip from 'components/StoriesStrip.vue'
 import VisualFeed from 'components/VisualFeed.vue'
 import { useSessionStore } from 'src/stores/session-store'
 
@@ -176,12 +172,6 @@ function formatDate(date) {
 @media (max-width: 1020px) {
   .right-rail {
     width: 280px;
-  }
-}
-
-@media (max-width: 700px) {
-  .index-content {
-    padding: 10px 8px 34px;
   }
 }
 </style>

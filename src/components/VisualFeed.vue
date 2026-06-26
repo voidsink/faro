@@ -1,7 +1,7 @@
 <template>
   <section class="visual-feed column q-gutter-y-sm full-width">
     <div class="row items-center justify-between q-col-gutter-sm">
-      <h2 class="section-heading col-auto q-ma-none">Visual feed</h2>
+      <h2 class="text-h6 text-weight-bolder q-ma-none">Visual feed</h2>
       <div class="col-auto row items-center q-col-gutter-sm">
         <div class="col-auto">
           <q-checkbox
@@ -19,20 +19,39 @@
           <q-btn
             flat
             dense
-            no-caps
+            round
+            color="dark"
             icon="refresh"
-            label="Fetch Nostr"
             :loading="refreshing"
+            aria-label="Refresh Nostr feed"
             @click="$emit('refresh')"
-          />
+          >
+            <q-tooltip>Refresh</q-tooltip>
+          </q-btn>
         </div>
       </div>
     </div>
 
-    <q-banner v-if="pendingCount" rounded dense class="faro-warning q-mt-sm">
+    <q-banner
+      v-if="pendingCount"
+      rounded
+      class="bg-white text-dark q-mt-sm"
+      style="border: 1px solid rgba(15, 23, 42, 0.08)"
+    >
       <div class="row items-center justify-between q-gutter-sm">
-        <span>{{ pendingCount }} new post{{ pendingCount === 1 ? '' : 's' }}</span>
-        <q-btn flat dense no-caps color="dark" label="Show" @click="$emit('show-pending')" />
+        <div class="row items-center q-gutter-sm">
+          <q-icon name="auto_awesome" color="primary" size="20px" />
+          <span class="text-weight-medium">{{ pendingCount }} new post{{ pendingCount === 1 ? '' : 's' }}</span>
+        </div>
+        <q-btn
+          unelevated
+          rounded
+          dense
+          no-caps
+          color="dark"
+          label="Show"
+          @click="$emit('show-pending')"
+        />
       </div>
     </q-banner>
 
@@ -84,13 +103,25 @@
         v-else
         flat
         bordered
-        class="faro-surface column flex-center text-center text-brown-5 q-pa-lg q-mt-md q-gutter-sm"
+        class="faro-surface column flex-center text-center q-pa-xl q-mt-md q-gutter-md"
         data-testid="empty-feed"
       >
-        <q-icon name="auto_awesome" size="32px" />
-        <p class="q-ma-none">
-          No images yet. Post locally or fetch Nostr visuals from followed pubkeys.
-        </p>
+        <q-avatar size="64px" color="blue-grey-1" text-color="blue-grey-5" icon="photo_library" />
+        <div>
+          <p class="text-weight-bold text-body1 q-ma-none">No visuals yet</p>
+          <p class="text-caption text-blue-grey-6 q-ma-none q-mt-xs">
+            Post locally or fetch visuals from Nostr.
+          </p>
+        </div>
+        <q-btn
+          unelevated
+          rounded
+          color="dark"
+          no-caps
+          icon="add_photo_alternate"
+          label="Create post"
+          to="/new"
+        />
       </q-card>
     </q-pull-to-refresh>
   </section>
@@ -163,12 +194,6 @@ function loadMore(_index, done) {
 </script>
 
 <style scoped>
-.section-heading {
-  font-size: 1rem;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
 .visual-feed,
 .feed-refresh,
 .feed-grid {
@@ -199,10 +224,7 @@ function loadMore(_index, done) {
   width: 100%;
 }
 
-.layout-toggle :deep(.q-checkbox__inner) {
-  font-size: 25px;
-}
-
+.layout-toggle :deep(.q-checkbox__inner),
 .layout-toggle :deep(.q-icon) {
   font-size: 25px;
 }
