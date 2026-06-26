@@ -20,8 +20,6 @@
         @import-nsec="importNsec"
       />
 
-      <q-banner v-if="message" rounded class="faro-warning q-my-md" dense>{{ message }}</q-banner>
-
       <div class="row items-start justify-center q-col-gutter-md">
         <section class="col-12 col-md column q-gutter-y-md overflow-hidden">
           <!-- <stories-strip
@@ -102,7 +100,6 @@ const {
   profileSubtitle,
   authLabel,
   hasNip07,
-  message,
   refreshing,
   hasMoreRelayPosts,
   following,

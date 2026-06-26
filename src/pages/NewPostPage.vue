@@ -12,33 +12,6 @@
           </q-toolbar-title>
         </q-toolbar>
 
-        <q-banner v-if="message" rounded dense class="faro-warning q-mx-md q-mb-md">
-          {{ message }}
-        </q-banner>
-
-        <q-card-section v-if="!identity" class="q-pt-none">
-          <q-card flat bordered class="auth-prompt bg-grey-1">
-            <q-card-section class="row items-center q-col-gutter-md">
-              <div class="col-12 col-sm">
-                <div class="text-weight-bold">Login before publishing</div>
-                <div class="text-caption text-blue-grey-7">
-                  Use a signer to publish to Nostr, or create a local identity if you only want to
-                  save a draft on this device.
-                </div>
-              </div>
-              <div class="col-12 col-sm-auto row q-gutter-sm">
-                <q-btn
-                  unelevated
-                  color="dark"
-                  no-caps
-                  label="Sign in"
-                  @click="loginDialogOpen = true"
-                />
-              </div>
-            </q-card-section>
-          </q-card>
-        </q-card-section>
-
         <login-dialog
           v-model="loginDialogOpen"
           :has-nip07="hasNip07"
@@ -261,6 +234,7 @@ import { ASPECT_RATIOS, processImageFile } from 'src/services/localMedia'
 import { loadBlossomServers, uploadBlobToBlossom } from 'src/services/blossom'
 import { publishMediaPost } from 'src/services/nostrRelay'
 import { useSessionStore } from 'src/stores/session-store'
+import { notifySuccess, notifyError } from 'src/utils/notify'
 
 const router = useRouter()
 const session = useSessionStore()
@@ -272,7 +246,6 @@ const imagePreview = ref('')
 const processedMedia = ref(null)
 const selectedRatio = ref('1:1')
 const selectedFile = ref(null)
-const message = ref('')
 const publishing = ref(false)
 const publishMode = ref('')
 const loginDialogOpen = ref(false)
@@ -306,7 +279,6 @@ watch(identity, (nextIdentity) => {
 })
 
 async function handleLoginNip07() {
-  message.value = ''
   await session.loginWithNip07()
   if (session.identity) loginDialogOpen.value = false
 }
@@ -320,29 +292,24 @@ function handleLoginBunker(value) {
 }
 
 function handleCreateKey() {
-  message.value = ''
   session.createLocalKey()
   loginDialogOpen.value = false
 }
 
 function handleImportNsec(value) {
-  message.value = ''
   session.importNsec(value)
   if (session.identity?.source === 'nsec') loginDialogOpen.value = false
 }
 
 function openGallery() {
-  message.value = ''
   galleryInput.value?.click()
 }
 
 function openCamera() {
-  message.value = ''
   cameraInput.value?.click()
 }
 
 async function selectImage(event) {
-  message.value = ''
   const file = event.target.files?.[0]
   if (!file) return
 
@@ -365,7 +332,7 @@ async function processSelectedImage() {
   } catch {
     processedMedia.value = null
     imagePreview.value = ''
-    message.value = 'Could not process that image.'
+    notifyError('Could not process that image.')
   }
 }
 
@@ -376,11 +343,11 @@ function ratioToNumber(ratio) {
 
 async function saveLocalPost() {
   if (!identity.value) {
-    message.value = 'Login or create a local identity before saving locally.'
+    notifyError('Login or create a local identity before saving locally.')
     return
   }
   if (!imagePreview.value) {
-    message.value = 'Choose an image before saving.'
+    notifyError('Choose an image before saving.')
     return
   }
 
@@ -400,7 +367,7 @@ async function saveLocalPost() {
     session.addLocalPost(nextPost)
     await router.push('/')
   } catch {
-    message.value = 'Could not save locally. Try a smaller image.'
+    notifyError('Could not save locally. Try a smaller image.')
   } finally {
     publishing.value = false
     publishMode.value = ''
@@ -423,23 +390,22 @@ function serializableMedia(media) {
 async function publishNostrPost() {
   const signer = await session.activeSigner('publishing to Nostr')
   if (!signer) {
-    message.value = session.message || session.requireSignerMessage('publishing to Nostr')
+    notifyError(session.message || session.requireSignerMessage('publishing to Nostr'))
     return
   }
   if (!processedMedia.value?.blob) {
-    message.value = 'Choose an image before publishing.'
+    notifyError('Choose an image before publishing.')
     return
   }
 
   const blossomServers = loadBlossomServers()
   if (!blossomServers.length) {
-    message.value = 'Configure a Blossom media server in Settings before publishing to Nostr.'
+    notifyError('Configure a Blossom media server in Settings before publishing to Nostr.')
     return
   }
 
   publishing.value = true
   publishMode.value = 'nostr'
-  message.value = 'Uploading image to Blossom…'
 
   try {
     const uploadResult = await uploadBlobToBlossom(processedMedia.value, {
@@ -447,11 +413,10 @@ async function publishNostrPost() {
       signer,
     })
     if (!uploadResult.ok) {
-      message.value = uploadResult.error || 'Blossom upload failed.'
+      notifyError(uploadResult.error || 'Blossom upload failed.')
       return
     }
 
-    message.value = 'Signing and publishing Nostr post…'
     const publishResult = await publishMediaPost(
       {
         caption: caption.value.trim(),
@@ -462,7 +427,7 @@ async function publishNostrPost() {
     )
 
     if (!publishResult.ok) {
-      message.value = publishResult.error || 'Post could not be published to any relay.'
+      notifyError(publishResult.error || 'Post could not be published to any relay.')
       return
     }
 
@@ -472,10 +437,10 @@ async function publishNostrPost() {
       media: uploadResult.metadata,
       caption: caption.value.trim(),
     })
-    session.message = relayPublishMessage(publishResult.results)
+    notifySuccess(relayPublishMessage(publishResult.results))
     await router.push('/')
   } catch (error) {
-    message.value = error?.message || 'Nostr publish failed.'
+    notifyError(error?.message || 'Nostr publish failed.')
   } finally {
     publishing.value = false
     publishMode.value = ''

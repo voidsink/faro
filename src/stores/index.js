@@ -1,5 +1,6 @@
 import { defineStore } from '#q-app/wrappers'
 import { createPinia } from 'pinia'
+import { createNotificationsPlugin } from './notifications-plugin'
 
 /*
  * If not building with SSR mode, you can
@@ -13,8 +14,8 @@ import { createPinia } from 'pinia'
 export default defineStore((/* { ssrContext } */) => {
   const pinia = createPinia()
 
-  // You can add Pinia plugins here
-  // pinia.use(SomePiniaPlugin)
+  // Auto-convert store messages to Quasar notifications
+  pinia.use(createNotificationsPlugin())
 
   return pinia
 })
