@@ -188,6 +188,16 @@
           </q-step>
 
           <q-step :name="4" title="Post" icon="send">
+            <q-banner
+              v-if="identity && !hasActiveNostrSigner"
+              rounded
+              dense
+              class="faro-warning q-mb-md"
+            >
+              Remote signer connection is not active. You can still press Publish to see the exact
+              recovery message, or sign in again with your bunker link.
+            </q-banner>
+
             <q-card flat bordered class="review-card overflow-hidden q-mx-auto">
               <q-card-section class="review-grid q-pa-none">
                 <div
@@ -231,7 +241,7 @@
                 icon="send"
                 label="Publish to Nostr"
                 :loading="publishing && publishMode === 'nostr'"
-                :disable="!canPublishToNostr"
+                :disable="!canAttemptNostrPublish"
                 @click="publishNostrPost"
               />
             </q-stepper-navigation>
@@ -278,9 +288,10 @@ const previewFrameStyle = computed(() => ({
 const canSaveLocally = computed(() =>
   Boolean(identity.value && imagePreview.value && !publishing.value),
 )
-const canPublishToNostr = computed(() =>
-  Boolean(canSignNostrEvents.value && processedMedia.value?.blob && !publishing.value),
+const canAttemptNostrPublish = computed(() =>
+  Boolean(processedMedia.value?.blob && !publishing.value),
 )
+const hasActiveNostrSigner = computed(() => Boolean(canSignNostrEvents.value))
 
 onMounted(() => {
   session.init()
