@@ -6,14 +6,15 @@
         <div class="col-auto">
           <q-checkbox
             v-model="twoColumnFeedProxy"
-            checked-icon="dashboard"
-            unchecked-icon="calendar_view_day"
+            checked-icon="calendar_view_day"
+            unchecked-icon="dashboard"
             color="dark"
             class="layout-toggle"
             keep-color
             dense
             :aria-label="twoColumnFeed ? 'Two column feed' : 'Single column feed'"
           />
+          <q-tooltip>{{ twoColumnFeed ? 'Single column feed' : 'Two column feed' }}</q-tooltip>
         </div>
         <div class="col-auto">
           <q-btn
@@ -41,7 +42,9 @@
       <div class="row items-center justify-between q-gutter-sm">
         <div class="row items-center q-gutter-sm">
           <q-icon name="auto_awesome" color="primary" size="20px" />
-          <span class="text-weight-medium">{{ pendingCount }} new post{{ pendingCount === 1 ? '' : 's' }}</span>
+          <span class="text-weight-medium"
+            >{{ pendingCount }} new post{{ pendingCount === 1 ? '' : 's' }}</span
+          >
         </div>
         <q-btn
           unelevated

@@ -2,7 +2,6 @@
   <q-card flat bordered class="faro-surface column q-pa-md q-gutter-md">
     <div class="row items-center justify-between">
       <strong>Insights</strong>
-      <span class="text-caption text-weight-bold">See More</span>
     </div>
 
     <p class="text-blue-grey-6 text-caption">
