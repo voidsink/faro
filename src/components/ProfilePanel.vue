@@ -8,11 +8,7 @@
         ratio="3.5"
         class="profile-cover-image"
       />
-      <div
-        v-else
-        class="profile-cover-gradient full-width full-height"
-        aria-hidden="true"
-      />
+      <div v-else class="profile-cover-gradient full-width full-height" aria-hidden="true" />
     </div>
 
     <div class="relative-position q-px-md q-pb-md">
@@ -26,7 +22,7 @@
         />
       </div>
 
-      <div class="q-mt-lg">
+      <div class="profile-identity">
         <q-item-label class="text-h6 text-weight-bold line-height-tight">
           {{ identity ? displayName : 'Not logged in' }}
         </q-item-label>
@@ -153,6 +149,10 @@ defineEmits(['open-login', 'logout'])
 
 .profile-avatar {
   display: block;
+}
+
+.profile-identity {
+  padding-top: 58px;
 }
 
 .line-height-tight {
