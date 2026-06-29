@@ -264,8 +264,8 @@ const canSaveLocally = computed(() =>
 const canAttemptNostrPublish = computed(() =>
   Boolean(
     processedMedia.value?.blob &&
-      !publishing.value &&
-      (hasActiveNostrSigner.value || identity.value?.clientSecretKeyHex),
+    !publishing.value &&
+    (hasActiveNostrSigner.value || identity.value?.clientSecretKeyHex),
   ),
 )
 const hasActiveNostrSigner = computed(() => Boolean(canSignNostrEvents.value))

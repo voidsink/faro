@@ -3,13 +3,23 @@ import { notifySuccess, notifyError, notifyWarning, notifyInfo } from 'src/utils
 function inferNotificationType(message) {
   if (!message) return null
   const lower = message.toLowerCase()
-  if (lower.includes('failed') || lower.includes('error') || lower.includes('could not') || lower.includes('rejected')) {
+  if (
+    lower.includes('failed') ||
+    lower.includes('error') ||
+    lower.includes('could not') ||
+    lower.includes('rejected')
+  ) {
     return 'error'
   }
   if (lower.includes('cancelled') || lower.includes('unavailable') || lower.includes('try again')) {
     return 'warning'
   }
-  if (lower.includes('connected') || lower.includes('published') || lower.includes('created') || lower.includes('imported')) {
+  if (
+    lower.includes('connected') ||
+    lower.includes('published') ||
+    lower.includes('created') ||
+    lower.includes('imported')
+  ) {
     return 'success'
   }
   if (lower.includes('connecting') || lower.includes('loading') || lower.includes('fetching')) {
@@ -21,13 +31,13 @@ function inferNotificationType(message) {
 export function createNotificationsPlugin() {
   return ({ store }) => {
     let previousMessage = ''
-    
+
     store.$subscribe((mutation, state) => {
       const message = state.message
       if (message && message !== previousMessage) {
         previousMessage = message
         const type = inferNotificationType(message)
-        
+
         switch (type) {
           case 'success':
             notifySuccess(message)
@@ -41,7 +51,7 @@ export function createNotificationsPlugin() {
           default:
             notifyInfo(message)
         }
-        
+
         // Clear message after showing notification
         setTimeout(() => {
           if (store.message === message) {

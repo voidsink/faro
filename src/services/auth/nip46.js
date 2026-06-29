@@ -27,7 +27,8 @@ export function buildBunkerUrl({ signerPubkey, relays = [] } = {}) {
 function randomSecret() {
   const bytes = new Uint8Array(12)
   globalThis.crypto?.getRandomValues?.(bytes)
-  if (bytes.some(Boolean)) return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+  if (bytes.some(Boolean))
+    return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
@@ -119,7 +120,9 @@ function withTimeout(promise, timeoutMs, message) {
 
 function wrapRemoteSigner(bunkerSigner, parsed, accountPubkey, clientSecretKey) {
   const signerPubkey = bunkerSigner.bp?.pubkey || bunkerSigner.remotePubkey || parsed.signerPubkey
-  const relays = bunkerSigner.bp?.relays?.length ? bunkerSigner.bp.relays : bunkerSigner.relays || parsed.relays
+  const relays = bunkerSigner.bp?.relays?.length
+    ? bunkerSigner.bp.relays
+    : bunkerSigner.relays || parsed.relays
 
   return {
     pubkey: accountPubkey,
@@ -232,7 +235,8 @@ class LegacyNip04RemoteSigner {
   async signEvent(event) {
     const response = await this.sendRequest('sign_event', [JSON.stringify(event)])
     const signed = JSON.parse(response)
-    if (!verifyEvent(signed)) throw new Error(`event returned from bunker is improperly signed: ${response}`)
+    if (!verifyEvent(signed))
+      throw new Error(`event returned from bunker is improperly signed: ${response}`)
     return signed
   }
 
@@ -274,21 +278,36 @@ function connectLegacyNip04FromUri(clientSecretKey, connectionUri, abortSignalOr
             return
           }
           if (response.result !== secret) return
-          finish(resolve, new LegacyNip04RemoteSigner({ clientSecretKey, remotePubkey: event.pubkey, relays }))
+          finish(
+            resolve,
+            new LegacyNip04RemoteSigner({ clientSecretKey, remotePubkey: event.pubkey, relays }),
+          )
         },
         onclose() {
-          if (!done) finish(reject, new Error('subscription closed before legacy NIP-04 connection was established.'))
+          if (!done)
+            finish(
+              reject,
+              new Error('subscription closed before legacy NIP-04 connection was established.'),
+            )
         },
       },
     )
 
     if (typeof abortSignalOrTimeout === 'number') {
       timeoutId = setTimeout(
-        () => finish(reject, new Error('Remote signer connection timed out. Check the signer app and relay.')),
+        () =>
+          finish(
+            reject,
+            new Error('Remote signer connection timed out. Check the signer app and relay.'),
+          ),
         abortSignalOrTimeout,
       )
     } else if (abortSignalOrTimeout) {
-      abortSignalOrTimeout.addEventListener('abort', () => finish(reject, new Error('Remote signer connection cancelled.')), { once: true })
+      abortSignalOrTimeout.addEventListener(
+        'abort',
+        () => finish(reject, new Error('Remote signer connection cancelled.')),
+        { once: true },
+      )
     }
   })
 }
@@ -296,7 +315,9 @@ function connectLegacyNip04FromUri(clientSecretKey, connectionUri, abortSignalOr
 export async function createRemoteSigner(input, options = {}) {
   const parsed = parseRemoteSignerUrl(input)
   if (parsed.type === 'nostrconnect' && !options.clientSecretKey) {
-    throw new Error('Generated nostrconnect:// login requires the matching in-memory client key. Use the QR flow instead of pasting nostrconnect:// URLs.')
+    throw new Error(
+      'Generated nostrconnect:// login requires the matching in-memory client key. Use the QR flow instead of pasting nostrconnect:// URLs.',
+    )
   }
   const clientSecretKey = options.clientSecretKey || generateSecretKey()
   const { timeoutMs = 60000, onauth, abortSignal } = options
@@ -332,11 +353,13 @@ export async function createRemoteSigner(input, options = {}) {
       throw new Error(`Unsupported remote signer type: ${parsed.type}`)
     }
 
-    const accountPubkey = options.accountPubkey || (await withTimeout(
-      bunkerSigner.getPublicKey(),
-      timeoutMs,
-      'Remote signer did not return a public key in time.',
-    ))
+    const accountPubkey =
+      options.accountPubkey ||
+      (await withTimeout(
+        bunkerSigner.getPublicKey(),
+        timeoutMs,
+        'Remote signer did not return a public key in time.',
+      ))
     return wrapRemoteSigner(bunkerSigner, parsed, accountPubkey, clientSecretKey)
   } catch (error) {
     try {

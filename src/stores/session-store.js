@@ -2,13 +2,8 @@ import { acceptHMRUpdate, defineStore } from 'pinia'
 import { decode, npubEncode } from 'nostr-tools/nip19'
 import { authLabelForSource, safeIdentityForStorage } from 'src/services/auth/identity'
 import { loginWithNip07 as requestNip07Login, nip07Signer } from 'src/services/auth/nip07'
-import {
-  createRemoteSigner,
-  secretKeyFromHex,
-} from 'src/services/auth/nip46'
-import {
-  loginWithPomegranate,
-} from 'src/services/auth/pomegranate'
+import { createRemoteSigner, secretKeyFromHex } from 'src/services/auth/nip46'
+import { loginWithPomegranate } from 'src/services/auth/pomegranate'
 import {
   createKeypair,
   keypairFromSecretKey,
@@ -330,7 +325,8 @@ export const useSessionStore = defineStore('session', {
     },
 
     async reconnectRemoteSigner({ silent = false } = {}) {
-      if (!(this.identity?.source === 'bunker' || this.identity?.source === 'pomegranate')) return false
+      if (!(this.identity?.source === 'bunker' || this.identity?.source === 'pomegranate'))
+        return false
       if (this.remoteSigner?.pubkey === this.identity.pubkey) return true
       if (!this.identity.bunkerUrl || !this.identity.clientSecretKeyHex) {
         if (!silent) this.message = 'Remote signer session needs a fresh sign-in.'

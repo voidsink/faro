@@ -49,9 +49,7 @@ export function notifyPersistent(message, opts = {}) {
     type: 'ongoing',
     message,
     timeout: 0,
-    actions: [
-      { label: 'Dismiss', color: 'white', handler: () => {} }
-    ],
+    actions: [{ label: 'Dismiss', color: 'white', handler: () => {} }],
     ...opts,
   })
 }

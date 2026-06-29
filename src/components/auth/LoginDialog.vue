@@ -85,8 +85,8 @@
                 <div class="col-12 col-sm">
                   <div class="text-weight-bold">Connect by QR</div>
                   <div class="option-caption no-margin q-mt-xs">
-                    Faro creates a temporary nostrconnect:// request and starts listening immediately.
-                    Scan the QR with your signer while this dialog stays open.
+                    Faro creates a temporary nostrconnect:// request and starts listening
+                    immediately. Scan the QR with your signer while this dialog stays open.
                   </div>
                   <div class="row q-gutter-sm q-mt-md">
                     <q-btn
@@ -109,9 +109,18 @@
                     />
                   </div>
                 </div>
-                <div v-if="nostrConnect.qr" class="col-12 col-sm-auto column items-center q-gutter-sm">
-                  <img :src="nostrConnect.qr" alt="Nostr Connect QR code" class="nostr-connect-qr" />
-                  <div class="text-caption text-blue-grey-6 text-weight-bold">Waiting for signer approval…</div>
+                <div
+                  v-if="nostrConnect.qr"
+                  class="col-12 col-sm-auto column items-center q-gutter-sm"
+                >
+                  <img
+                    :src="nostrConnect.qr"
+                    alt="Nostr Connect QR code"
+                    class="nostr-connect-qr"
+                  />
+                  <div class="text-caption text-blue-grey-6 text-weight-bold">
+                    Waiting for signer approval…
+                  </div>
                 </div>
               </div>
               <q-input

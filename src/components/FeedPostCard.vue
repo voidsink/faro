@@ -1,10 +1,5 @@
 <template>
-  <q-card
-    flat
-    bordered
-    class="faro-surface full-width overflow-hidden"
-    data-testid="feed-post"
-  >
+  <q-card flat bordered class="faro-surface full-width overflow-hidden" data-testid="feed-post">
     <q-card-section class="q-py-sm q-px-md">
       <q-item class="q-px-none">
         <q-item-section avatar>
@@ -17,7 +12,9 @@
         </q-item-section>
         <q-item-section>
           <q-item-label class="text-weight-bold text-body2">{{ post.author.name }}</q-item-label>
-          <q-item-label caption class="text-blue-grey-6 text-caption">{{ formattedDate }}</q-item-label>
+          <q-item-label caption class="text-blue-grey-6 text-caption">{{
+            formattedDate
+          }}</q-item-label>
         </q-item-section>
         <q-item-section side>
           <q-btn flat round dense icon="more_horiz" color="blue-grey-6" aria-label="Post options" />
@@ -96,7 +93,15 @@
         </q-btn>
       </div>
 
-      <q-btn flat round dense size="md" icon="bookmark_border" color="blue-grey-10" aria-label="Save post">
+      <q-btn
+        flat
+        round
+        dense
+        size="md"
+        icon="bookmark_border"
+        color="blue-grey-10"
+        aria-label="Save post"
+      >
         <q-tooltip>Save</q-tooltip>
       </q-btn>
     </q-card-actions>

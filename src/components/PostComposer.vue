@@ -11,7 +11,9 @@
           />
         </q-item-section>
         <q-item-section>
-          <q-item-label class="text-weight-bold">{{ identity ? displayName : 'Create post' }}</q-item-label>
+          <q-item-label class="text-weight-bold">{{
+            identity ? displayName : 'Create post'
+          }}</q-item-label>
           <q-item-label caption class="text-blue-grey-6">{{
             identity ? 'Share a visual moment' : 'Login to unlock posting'
           }}</q-item-label>
@@ -33,11 +35,7 @@
     </q-card-section>
 
     <q-card-section>
-      <q-banner
-        v-if="!identity"
-        rounded
-        class="bg-orange-1 text-brown-8 q-mb-md"
-      >
+      <q-banner v-if="!identity" rounded class="bg-orange-1 text-brown-8 q-mb-md">
         Sign in or create a local identity to publish visuals.
       </q-banner>
 
