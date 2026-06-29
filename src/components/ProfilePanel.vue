@@ -18,6 +18,7 @@
           :name="displayName"
           :pubkey="identity?.pubkey"
           :picture="activeProfile.picture"
+          button
           class="profile-avatar bg-white"
         />
       </div>
@@ -142,9 +143,6 @@ defineEmits(['open-login', 'logout'])
   position: absolute;
   top: -44px;
   left: 16px;
-  padding: 4px;
-  border-radius: 50%;
-  background: white;
 }
 
 .profile-avatar {

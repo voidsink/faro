@@ -1,5 +1,19 @@
 <template>
-  <component :is="pubkey ? 'router-link' : 'div'" :to="profileHref" class="user-avatar-link">
+  <q-btn
+    v-if="button"
+    round
+    unelevated
+    :color="buttonColor"
+    :to="profileHref"
+    class="user-avatar-button"
+  >
+    <q-avatar :size="size" :color="avatarColor" text-color="white" class="user-avatar">
+      <q-img v-if="picture" :src="picture" :alt="alt" ratio="1" />
+      <span v-else>{{ initials }}</span>
+    </q-avatar>
+  </q-btn>
+
+  <component v-else :is="pubkey ? 'router-link' : 'div'" :to="profileHref" class="user-avatar-link">
     <q-avatar :size="size" :color="avatarColor" text-color="white" class="user-avatar">
       <q-img v-if="picture" :src="picture" :alt="alt" ratio="1" />
       <span v-else>{{ initials }}</span>
@@ -27,6 +41,14 @@ const props = defineProps({
   size: {
     type: String,
     default: '40px',
+  },
+  button: {
+    type: Boolean,
+    default: false,
+  },
+  buttonColor: {
+    type: String,
+    default: 'white',
   },
 })
 
@@ -70,5 +92,11 @@ const avatarColor = computed(() => {
 .user-avatar {
   flex: 0 0 auto;
   font-weight: 800;
+}
+
+.user-avatar-button {
+  min-height: auto;
+  min-width: auto;
+  padding: 4px;
 }
 </style>
