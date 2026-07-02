@@ -8,6 +8,7 @@ export const DEFAULT_RELAYS = [
   'wss://relay.nostr.com',
 ]
 export const RELAYS_STORAGE_KEY = 'faro-relays'
+export const FOLLOWED_HASHTAGS_STORAGE_KEY = 'faro-followed-hashtags'
 
 const DEFAULT_TIMEOUT_MS = 8000
 const MAX_VISUAL_EVENTS = 80
@@ -40,6 +41,49 @@ export function parseRelayList(value) {
       .map((relay) => relay.trim())
       .filter(Boolean),
   )
+}
+
+export function normalizeHashtags(tags = []) {
+  return uniqueStrings(
+    (Array.isArray(tags) ? tags : String(tags || '').split(/[\n, ]+/))
+      .map((tag) =>
+        String(tag || '')
+          .trim()
+          .replace(/^#+/, '')
+          .toLowerCase(),
+      )
+      .filter((tag) => /^[\p{L}\p{N}_-]+$/u.test(tag)),
+  )
+}
+
+export function parseHashtagList(value) {
+  return normalizeHashtags(value)
+}
+
+function followedHashtagsStorageKey(pubkey = '') {
+  const cleanPubkey = String(pubkey || '').trim()
+  return cleanPubkey
+    ? `${FOLLOWED_HASHTAGS_STORAGE_KEY}-${cleanPubkey}`
+    : FOLLOWED_HASHTAGS_STORAGE_KEY
+}
+
+export function loadFollowedHashtags(pubkey = '') {
+  try {
+    const stored = localStorage.getItem(followedHashtagsStorageKey(pubkey))
+    return stored ? parseHashtagList(JSON.parse(stored)) : []
+  } catch {
+    return []
+  }
+}
+
+export function saveFollowedHashtags(tags, pubkey = '') {
+  const normalized = parseHashtagList(tags)
+  try {
+    localStorage.setItem(followedHashtagsStorageKey(pubkey), JSON.stringify(normalized))
+  } catch {
+    // Ignore storage failures; caller can still use returned tags in memory.
+  }
+  return normalized
 }
 
 export function loadRelays() {
@@ -196,21 +240,28 @@ export function requestEvents({
 
 export function subscribeVisualFeed(authors, options = {}) {
   const authorList = uniqueStrings(authors).filter(isValidPubkey)
+  const tagList = normalizeHashtags(options.tags)
   const relayUrls = relaysForOptions(options)
   const onEvent = typeof options.onEvent === 'function' ? options.onEvent : () => {}
 
-  if (!authorList.length || !relayUrls.length) return { close() {} }
+  if ((!authorList.length && !tagList.length) || !relayUrls.length) return { close() {} }
 
   const subscriptions = []
   const chunkSize = options.authorChunkSize || 20
+  const filters = []
   for (let index = 0; index < authorList.length; index += chunkSize) {
     const chunk = authorList.slice(index, index + chunkSize)
+    filters.push({ authors: chunk })
+  }
+  filters.push(...tagList.map((tag) => ({ '#t': [tag] })))
+
+  for (const filter of filters) {
     subscriptions.push(
       pool.subscribe(
         relayUrls,
         {
           kinds: [1],
-          authors: chunk,
+          ...filter,
           since: options.since || nowSeconds(),
         },
         {
@@ -309,30 +360,42 @@ export function relayHintsFromFollowingEvent(event) {
 
 export function buildVisualFeedFilters(authors, options = {}) {
   const authorList = uniqueStrings(authors).filter(isValidPubkey)
+  const tagList = normalizeHashtags(options.tags)
   const chunkSize = options.authorChunkSize || 20
   const authorChunks = []
   for (let index = 0; index < authorList.length; index += chunkSize) {
     authorChunks.push(authorList.slice(index, index + chunkSize))
   }
-  if (!authorChunks.length) authorChunks.push([])
+  if (!authorChunks.length && !tagList.length) authorChunks.push([])
 
   const requestedVisualLimit = options.limit || MAX_VISUAL_EVENTS
   const perChunkLimit = Math.max(options.filterLimit || requestedVisualLimit * 4, 20)
-  return authorChunks.map((chunk) => {
+  const baseFilter = () => ({
+    kinds: [1],
+    limit: perChunkLimit,
+    since: options.since,
+    until: options.until || nowSeconds(),
+  })
+  const filters = authorChunks.map((chunk) => {
     const filter = {
-      kinds: [1],
-      limit: perChunkLimit,
-      since: options.since,
-      until: options.until || nowSeconds(),
+      ...baseFilter(),
     }
     if (chunk.length) filter.authors = chunk
     return filter
   })
+  filters.push(
+    ...tagList.map((tag) => ({
+      ...baseFilter(),
+      '#t': [tag],
+    })),
+  )
+  return filters
 }
 
 export async function fetchVisualFeed(authors, options = {}) {
   const authorList = uniqueStrings(authors).filter(isValidPubkey)
-  const fallback = { ok: false, authors: authorList, events: [], error: null }
+  const tags = normalizeHashtags(options.tags)
+  const fallback = { ok: false, authors: authorList, tags, events: [], error: null }
 
   try {
     const relayEvents = await Promise.all(

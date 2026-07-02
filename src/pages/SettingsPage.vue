@@ -110,6 +110,39 @@
 
           <q-item>
             <q-item-section avatar>
+              <q-icon name="tag" />
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>Follow hashtags</q-item-label>
+              <q-item-label caption>
+                Add topics like #bitcoin or photography. Faro mixes matching visual posts into your
+                feed alongside people you follow.
+              </q-item-label>
+              <q-input
+                v-model="draftHashtags"
+                outlined
+                dense
+                autogrow
+                class="q-mt-sm relay-input"
+                label="Hashtags"
+                placeholder="#bitcoin\n#photography"
+                hint="One per line, comma, or space. # is optional."
+              />
+            </q-item-section>
+            <q-item-section side>
+              <q-btn
+                unelevated
+                dense
+                no-caps
+                color="dark"
+                label="Save"
+                @click="saveHashtagSettings"
+              />
+            </q-item-section>
+          </q-item>
+
+          <q-item>
+            <q-item-section avatar>
               <q-icon name="notifications" />
             </q-item-section>
             <q-item-section>
@@ -131,6 +164,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useSessionStore } from 'src/stores/session-store'
 import {
   DEFAULT_BLOSSOM_SERVERS,
   loadBlossomServers,
@@ -139,15 +173,18 @@ import {
 } from 'src/services/blossom'
 import { DEFAULT_RELAYS, loadRelays, saveRelays } from 'src/services/nostrRelay'
 
+const session = useSessionStore()
 const defaultBlossomServers = DEFAULT_BLOSSOM_SERVERS
 const draftBlossomServers = ref('')
 const draftRelays = ref('')
+const draftHashtags = ref('')
 const message = ref('')
 const notificationsEnabled = ref(false)
 
 onMounted(() => {
   draftBlossomServers.value = loadBlossomServers().join('\n')
   draftRelays.value = loadRelays().join('\n')
+  draftHashtags.value = session.followedHashtags.map((tag) => `#${tag}`).join('\n')
 })
 
 function splitLines(value) {
@@ -182,6 +219,13 @@ function saveRelaySettings() {
 function resetRelays() {
   draftRelays.value = DEFAULT_RELAYS.join('\n')
   saveRelaySettings()
+}
+
+function saveHashtagSettings() {
+  const tags = session.updateFollowedHashtags(draftHashtags.value)
+  draftHashtags.value = tags.map((tag) => `#${tag}`).join('\n')
+  message.value = `Hashtag settings saved: ${tags.length} tag${tags.length === 1 ? '' : 's'}. Refreshing feed…`
+  session.refreshFromNostr({ silent: true })
 }
 </script>
 

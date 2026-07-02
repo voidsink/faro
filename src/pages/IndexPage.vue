@@ -52,6 +52,7 @@
             :following-count="following.length"
             :posts-count="localPosts.length + relayPosts.length"
             :relays-count="3"
+            :hashtags-count="followedHashtags.length"
             @open-login="loginDialogOpen = true"
             @logout="session.logout"
           />
@@ -100,6 +101,7 @@ const {
   refreshing,
   hasMoreRelayPosts,
   following,
+  followedHashtags,
   localPosts,
   relayPosts,
   pendingRelayEvents,

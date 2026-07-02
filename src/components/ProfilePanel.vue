@@ -45,6 +45,10 @@
           <div class="text-weight-bold text-body2">{{ relaysCount }}</div>
           <div class="text-caption text-blue-grey-6">Relays</div>
         </div>
+        <div class="col-auto text-center">
+          <div class="text-weight-bold text-body2">{{ hashtagsCount }}</div>
+          <div class="text-caption text-blue-grey-6">Tags</div>
+        </div>
       </div>
 
       <div class="column q-mt-md q-gutter-sm">
@@ -117,6 +121,10 @@ defineProps({
     default: 0,
   },
   relaysCount: {
+    type: Number,
+    default: 0,
+  },
+  hashtagsCount: {
     type: Number,
     default: 0,
   },

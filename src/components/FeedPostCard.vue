@@ -158,7 +158,7 @@
         :class="{ 'caption-clamped': captionLong && !captionExpanded }"
       >
         <span class="text-weight-bold">{{ post.author.name }}</span>
-        {{ post.caption }}
+        <caption-with-hashtags :text="post.caption" />
       </p>
       <div v-if="captionLong" class="q-mt-xs">
         <q-btn
@@ -228,6 +228,7 @@
 
 <script setup>
 import { computed, nextTick, ref } from 'vue'
+import CaptionWithHashtags from 'components/CaptionWithHashtags.vue'
 import UserAvatar from 'components/UserAvatar.vue'
 import { notifyInfo } from 'src/utils/notify'
 

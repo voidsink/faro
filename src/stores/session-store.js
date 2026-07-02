@@ -21,8 +21,10 @@ import {
   fetchInteractions,
   fetchProfile,
   fetchVisualFeed,
+  loadFollowedHashtags,
   publishReaction,
   publishReply,
+  saveFollowedHashtags,
   subscribeVisualFeed,
 } from 'src/services/nostrRelay'
 
@@ -91,6 +93,7 @@ export const useSessionStore = defineStore('session', {
     relayProfile: {},
     authorProfiles: {},
     following: [],
+    followedHashtags: [],
     followers: [],
     localPosts: [],
     relayPosts: [],
@@ -185,6 +188,9 @@ export const useSessionStore = defineStore('session', {
 
       this.hasNip07 = typeof window !== 'undefined' && Boolean(window.nostr?.getPublicKey)
       this.identity = this.loadIdentity()
+      this.followedHashtags = this.identity?.pubkey
+        ? loadFollowedHashtags(this.identity.pubkey)
+        : []
       this.localPosts = loadLocalPosts()
       this.loadRelayCache()
       this.initialized = true
@@ -212,6 +218,7 @@ export const useSessionStore = defineStore('session', {
       this.identity = nextIdentity
       this.relayProfile = {}
       this.following = []
+      this.followedHashtags = loadFollowedHashtags(nextIdentity.pubkey)
       this.followers = []
       this.relayPosts = []
       this.interactionsByEventId = {}
@@ -235,6 +242,7 @@ export const useSessionStore = defineStore('session', {
       this.relayProfile = {}
       this.authorProfiles = {}
       this.following = []
+      this.followedHashtags = []
       this.followers = []
       this.relayPosts = []
       this.interactionsByEventId = {}
@@ -567,6 +575,20 @@ export const useSessionStore = defineStore('session', {
       this.message = 'Local posts cleared. Login state kept.'
     },
 
+    updateFollowedHashtags(tags) {
+      this.followedHashtags = saveFollowedHashtags(tags, this.identity?.pubkey)
+      this.relayPosts = []
+      this.pendingRelayEvents = []
+      this.relayCursor = null
+      this.hasMoreRelayPosts = false
+      this.closeLiveFeedSubscription()
+      localStorage.removeItem(relayCacheKey)
+      this.message = this.followedHashtags.length
+        ? `Following ${this.followedHashtags.length} hashtag${this.followedHashtags.length === 1 ? '' : 's'}.`
+        : 'Hashtag follows cleared.'
+      return this.followedHashtags
+    },
+
     async refreshFromNostr({ silent = false } = {}) {
       this.refreshing = true
       if (!silent) this.message = ''
@@ -599,6 +621,7 @@ export const useSessionStore = defineStore('session', {
         const visualResult = await fetchVisualFeed(authors, {
           limit: silent && !this.relayPosts.length ? INITIAL_FEED_LIMIT : FEED_PAGE_SIZE,
           relays: followingResult.relayHints,
+          tags: this.followedHashtags,
           since: !silent && latest ? latest + 1 : daysAgoSeconds(INITIAL_LOOKBACK_DAYS),
         })
 
@@ -623,7 +646,7 @@ export const useSessionStore = defineStore('session', {
         if (!silent) {
           this.message =
             refreshed || this.following.length || this.relayPosts.length
-              ? `Nostr refresh complete: ${this.following.length} follows, ${this.relayPosts.length} visual posts.`
+              ? `Nostr refresh complete: ${this.following.length} follows, ${this.followedHashtags.length} hashtags, ${this.relayPosts.length} visual posts.`
               : 'Relay data was unavailable. Showing cached data if available.'
         }
       } catch {
@@ -648,6 +671,7 @@ export const useSessionStore = defineStore('session', {
         const visualResult = await fetchVisualFeed(authors, {
           limit: FEED_PAGE_SIZE,
           until,
+          tags: this.followedHashtags,
           timeoutMs: 6500,
         })
 
@@ -710,7 +734,7 @@ export const useSessionStore = defineStore('session', {
     startLiveFeedSubscription() {
       this.closeLiveFeedSubscription()
       const authors = [this.identity?.pubkey, ...this.following].filter(Boolean).slice(0, 100)
-      if (!authors.length) return
+      if (!authors.length && !this.followedHashtags.length) return
 
       const existing = new Set([
         ...this.relayPosts.map((post) => post.nostr?.id).filter(Boolean),
@@ -718,6 +742,7 @@ export const useSessionStore = defineStore('session', {
       ])
       this.liveFeedSubscription = subscribeVisualFeed(authors, {
         since: this.latestRelayPostTimestamp() || Math.floor(Date.now() / 1000),
+        tags: this.followedHashtags,
         onEvent: (event) => {
           if (existing.has(event.id)) return
           existing.add(event.id)

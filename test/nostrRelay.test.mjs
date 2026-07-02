@@ -1,13 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildVisualFeedFilters,
   buildReactionFilter,
   buildReplyFilter,
   buildZapFilter,
   extractImageUrls,
   extractVisualUrls,
   extractZapSummary,
+  loadFollowedHashtags,
+  normalizeHashtags,
   normalizeRelays,
+  saveFollowedHashtags,
 } from '../src/services/nostrRelay.js'
 
 test('normalizeRelays trims and filters wss URLs', () => {
@@ -16,10 +20,63 @@ test('normalizeRelays trims and filters wss URLs', () => {
   ])
 })
 
+test('normalizeHashtags strips hash prefixes and deduplicates tags', () => {
+  assert.deepEqual(normalizeHashtags(['#Bitcoin', ' nostr ', 'bitcoin', '', '#Nostr']), [
+    'bitcoin',
+    'nostr',
+  ])
+})
+
+test('followed hashtags are scoped by pubkey', () => {
+  const store = new Map()
+  const originalLocalStorage = globalThis.localStorage
+  globalThis.localStorage = {
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => store.set(key, String(value)),
+  }
+
+  try {
+    saveFollowedHashtags(['#bitcoin'], 'a'.repeat(64))
+    saveFollowedHashtags(['#nostr'], 'b'.repeat(64))
+
+    assert.deepEqual(loadFollowedHashtags('a'.repeat(64)), ['bitcoin'])
+    assert.deepEqual(loadFollowedHashtags('b'.repeat(64)), ['nostr'])
+    assert.deepEqual(loadFollowedHashtags(), [])
+  } finally {
+    globalThis.localStorage = originalLocalStorage
+  }
+})
+
+test('buildVisualFeedFilters fetches followed authors and followed hashtags as OR filters', () => {
+  const author = 'a'.repeat(64)
+  const filters = buildVisualFeedFilters([author], {
+    tags: ['bitcoin', '#photography'],
+    since: 10,
+    until: 20,
+    limit: 12,
+  })
+
+  assert.equal(filters.length, 3)
+  assert.deepEqual(filters[0], {
+    kinds: [1],
+    limit: 48,
+    since: 10,
+    until: 20,
+    authors: [author],
+  })
+  assert.deepEqual(filters[1], {
+    kinds: [1],
+    limit: 48,
+    since: 10,
+    until: 20,
+    '#t': ['bitcoin'],
+  })
+  assert.deepEqual(filters[2]['#t'], ['photography'])
+})
+
 test('extractVisualUrls separates images and videos from content', () => {
   const event = {
-    content:
-      'Check this out https://example.com/photo.jpg and https://example.com/clip.mp4',
+    content: 'Check this out https://example.com/photo.jpg and https://example.com/clip.mp4',
     tags: [],
   }
   const { images, videos } = extractVisualUrls(event)
@@ -59,8 +116,22 @@ test('buildZapFilter targets kind 9735 by event id', () => {
 test('extractZapSummary counts zap receipts and sums sats from bolt11', () => {
   const eventId = 'c'.repeat(64)
   const zaps = [
-    { kind: 9735, id: 'z1', tags: [['e', eventId], ['bolt11', 'lnbc10u1pv']] },
-    { kind: 9735, id: 'z2', tags: [['e', eventId], ['bolt11', 'lnbc100n1pv']] },
+    {
+      kind: 9735,
+      id: 'z1',
+      tags: [
+        ['e', eventId],
+        ['bolt11', 'lnbc10u1pv'],
+      ],
+    },
+    {
+      kind: 9735,
+      id: 'z2',
+      tags: [
+        ['e', eventId],
+        ['bolt11', 'lnbc100n1pv'],
+      ],
+    },
     { kind: 9735, id: 'z3', tags: [['e', 'other']] },
   ]
   const summary = extractZapSummary(zaps, eventId)
@@ -92,7 +163,14 @@ test('extractZapSummary prefers amount from zap request description', () => {
 test('extractZapSummary does not return a count key that could overwrite reaction counts', () => {
   const eventId = 'e'.repeat(64)
   const zaps = [
-    { kind: 9735, id: 'z1', tags: [['e', eventId], ['bolt11', 'lnbc5u1pv']] },
+    {
+      kind: 9735,
+      id: 'z1',
+      tags: [
+        ['e', eventId],
+        ['bolt11', 'lnbc5u1pv'],
+      ],
+    },
   ]
   const summary = extractZapSummary(zaps, eventId)
   assert.equal(summary.zapCount, 1)
@@ -103,7 +181,14 @@ test('extractZapSummary does not return a count key that could overwrite reactio
 test('extractZapSummary returns zero counts when no receipts reference the event', () => {
   const eventId = 'f'.repeat(64)
   const zaps = [
-    { kind: 9735, id: 'z1', tags: [['e', 'other'], ['bolt11', 'lnbc1u1pv']] },
+    {
+      kind: 9735,
+      id: 'z1',
+      tags: [
+        ['e', 'other'],
+        ['bolt11', 'lnbc1u1pv'],
+      ],
+    },
     { kind: 1, id: 'n1', tags: [['e', eventId]] },
   ]
   const summary = extractZapSummary(zaps, eventId)
