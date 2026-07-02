@@ -171,7 +171,7 @@ function makeMockWindow(pubkey = '') {
   return {
     nostr: {
       getPublicKey: () => Promise.resolve(pubkey),
-      signEvent: (event) => Promise.resolve({ ...event, sig: 'mock-sig' }),
+      signEvent: (event) => Promise.resolve({ ...event, pubkey, sig: 'mock-sig' }),
     },
   }
 }
@@ -217,7 +217,12 @@ test('loginWithNip07 fetches a fresh pubkey when the signer account has switched
         callCount += 1
         return Promise.resolve(callCount === 1 ? originalPubkey : switchedPubkey)
       },
-      signEvent: (event) => Promise.resolve({ ...event, sig: 'mock-sig' }),
+      signEvent: (event) =>
+        Promise.resolve({
+          ...event,
+          pubkey: callCount === 1 ? originalPubkey : switchedPubkey,
+          sig: 'mock-sig',
+        }),
     },
   }
 
@@ -227,4 +232,18 @@ test('loginWithNip07 fetches a fresh pubkey when the signer account has switched
   const second = await loginWithNip07(win)
   assert.equal(second.pubkey, switchedPubkey)
   assert.equal(second.source, 'nip07')
+})
+
+test('loginWithNip07 trusts the signed probe pubkey over stale authorization pubkey', async () => {
+  const authorizedPubkey = 'f'.repeat(64)
+  const activeSignerPubkey = '1'.repeat(64)
+  const win = {
+    nostr: {
+      getPublicKey: () => Promise.resolve(authorizedPubkey),
+      signEvent: (event) => Promise.resolve({ ...event, pubkey: activeSignerPubkey, sig: 'mock-sig' }),
+    },
+  }
+
+  const identity = await loginWithNip07(win)
+  assert.deepEqual(identity, { pubkey: activeSignerPubkey, source: 'nip07' })
 })
