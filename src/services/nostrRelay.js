@@ -12,6 +12,7 @@ export const RELAYS_STORAGE_KEY = 'faro-relays'
 const DEFAULT_TIMEOUT_MS = 8000
 const MAX_VISUAL_EVENTS = 80
 const IMAGE_EXTENSIONS = '(?:jpe?g|png|webp|gif)'
+const VIDEO_EXTENSIONS = '(?:mp4|webm|ogv|mov|m4v|mkv)'
 const URL_PATTERN = /https?:\/\/[^\s<>'"`]+/gi
 const HEX64_PATTERN = /^[0-9a-f]{64}$/i
 const pool = new SimplePool()
@@ -114,6 +115,19 @@ function isImageUrl(url) {
   }
 }
 
+function isVideoUrl(url) {
+  try {
+    const parsed = new URL(cleanUrl(url))
+    return new RegExp(`\\.${VIDEO_EXTENSIONS}$`, 'i').test(parsed.pathname)
+  } catch {
+    return false
+  }
+}
+
+function isVisualUrl(url) {
+  return isImageUrl(url) || isVideoUrl(url)
+}
+
 function readTagValue(tag) {
   if (!Array.isArray(tag)) return ''
 
@@ -128,12 +142,18 @@ function readTagValue(tag) {
 }
 
 export function extractImageUrls(event) {
-  const urls = []
+  return extractVisualUrls(event).images
+}
+
+export function extractVisualUrls(event) {
+  const images = []
+  const videos = []
   const content = typeof event?.content === 'string' ? event.content : ''
 
   for (const match of content.matchAll(URL_PATTERN)) {
     const url = cleanUrl(match[0])
-    if (isImageUrl(url)) urls.push(url)
+    if (isImageUrl(url)) images.push(url)
+    else if (isVideoUrl(url)) videos.push(url)
   }
 
   for (const tag of event?.tags || []) {
@@ -142,15 +162,17 @@ export function extractImageUrls(event) {
 
     for (const match of value.matchAll(URL_PATTERN)) {
       const url = cleanUrl(match[0])
-      if (isImageUrl(url)) urls.push(url)
+      if (isImageUrl(url)) images.push(url)
+      else if (isVideoUrl(url)) videos.push(url)
     }
 
-    if (/^https?:\/\//i.test(value) && isImageUrl(value)) {
-      urls.push(cleanUrl(value))
+    if (/^https?:\/\//i.test(value)) {
+      if (isImageUrl(value)) images.push(cleanUrl(value))
+      else if (isVideoUrl(value)) videos.push(cleanUrl(value))
     }
   }
 
-  return uniqueStrings(urls)
+  return { images: uniqueStrings(images), videos: uniqueStrings(videos) }
 }
 
 export function requestEvents({
@@ -198,8 +220,10 @@ export function subscribeVisualFeed(authors, options = {}) {
         {
           onevent(event) {
             if (!isValidNostrEvent(event)) return
-            const imageUrls = extractImageUrls(event)
-            if (imageUrls.length) onEvent({ ...event, imageUrls })
+            const { images, videos } = extractVisualUrls(event)
+            if (images.length || videos.length) {
+              onEvent({ ...event, imageUrls: images, videoUrls: videos })
+            }
           },
         },
       ),
@@ -334,8 +358,11 @@ export async function fetchVisualFeed(authors, options = {}) {
       ok: true,
       events: [...eventsById.values()]
         .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
-        .map((event) => ({ ...event, imageUrls: extractImageUrls(event) }))
-        .filter((event) => event.imageUrls.length)
+        .map((event) => {
+          const { images, videos } = extractVisualUrls(event)
+          return { ...event, imageUrls: images, videoUrls: videos }
+        })
+        .filter((event) => event.imageUrls.length || event.videoUrls.length)
         .slice(0, options.limit || MAX_VISUAL_EVENTS),
     }
   } catch (error) {
@@ -451,6 +478,67 @@ export function buildReplyFilter(eventIds, options = {}) {
   }
 }
 
+export function buildZapFilter(eventIds, options = {}) {
+  return {
+    kinds: [9735],
+    '#e': uniqueStrings(eventIds).filter((eventId) => HEX64_PATTERN.test(eventId)),
+    limit: options.limit || 200,
+  }
+}
+
+function parseZapRequestAmount(descriptionTag) {
+  if (!descriptionTag) return 0
+  try {
+    const parsed = JSON.parse(descriptionTag)
+    const amountTag = parsed.tags?.find((tag) => Array.isArray(tag) && tag[0] === 'amount')
+    const amount = Number(amountTag?.[1])
+    return Number.isFinite(amount) && amount > 0 ? amount : 0
+  } catch {
+    return 0
+  }
+}
+
+function parseBolt11Amount(invoice) {
+  const match = String(invoice).match(/^lnbc(\d+)([munp]?)/i)
+  if (!match) return 0
+  const amount = Number(match[1])
+  const multiplier = match[2] || ''
+  const satsPerBtc = 100_000_000
+  const multipliers = {
+    m: satsPerBtc / 1_000,
+    u: satsPerBtc / 1_000_000,
+    n: satsPerBtc / 1_000_000_000,
+    p: satsPerBtc / 1_000_000_000_000,
+  }
+  const sats = multiplier ? amount * (multipliers[multiplier] || 0) : amount * satsPerBtc
+  return Math.floor(sats)
+}
+
+export function extractZapSummary(events, eventId) {
+  const zaps = (events || []).filter(
+    (event) => event?.kind === 9735 && eventReferencesId(event, eventId),
+  )
+
+  let sats = 0
+  let msats = 0
+  for (const event of zaps) {
+    const description = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === 'description')?.[1]
+    const descriptionMsats = parseZapRequestAmount(description)
+    if (descriptionMsats) {
+      msats += descriptionMsats
+      sats += Math.floor(descriptionMsats / 1000)
+      continue
+    }
+
+    const bolt11 = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === 'bolt11')?.[1]
+    const eventSats = parseBolt11Amount(bolt11)
+    sats += eventSats
+    msats += eventSats * 1000
+  }
+
+  return { zapCount: zaps.length, sats, msats }
+}
+
 export function extractReactionSummary(events, eventId, viewerPubkey = '') {
   const reactions = (events || []).filter(
     (event) => event?.kind === 7 && eventReferencesId(event, eventId) && isPositiveReaction(event),
@@ -485,7 +573,7 @@ export async function fetchInteractions(eventIds, options = {}) {
   if (!ids.length) return { ...fallback, error: 'No valid event ids' }
 
   try {
-    const [reactionEvents, replyEvents] = await Promise.all([
+    const [reactionEvents, replyEvents, zapEvents] = await Promise.all([
       requestEvents({
         relays: relaysForOptions(options),
         timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
@@ -496,6 +584,11 @@ export async function fetchInteractions(eventIds, options = {}) {
         timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
         filters: [buildReplyFilter(ids, { limit: options.replyLimit || 300 })],
       }),
+      requestEvents({
+        relays: relaysForOptions(options),
+        timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
+        filters: [buildZapFilter(ids, { limit: options.zapLimit || 300 })],
+      }),
     ])
 
     const interactions = Object.fromEntries(
@@ -505,10 +598,14 @@ export async function fetchInteractions(eventIds, options = {}) {
           eventId,
           options.viewerPubkey,
         )
+        const zapSummary = extractZapSummary(zapEvents, eventId)
         return [
           eventId,
           {
             ...reactionSummary,
+            zapCount: zapSummary.zapCount,
+            sats: zapSummary.sats,
+            msats: zapSummary.msats,
             replies: mapReplyEvents(replyEvents, eventId),
           },
         ]

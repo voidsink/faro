@@ -52,7 +52,7 @@
             class="feed-image block"
           />
         </q-carousel-slide>
-        <template v-slot:navigation-icon="{ active, btnProps, onClick }">
+        <template #navigation-icon="{ active, btnProps, onClick }">
           <q-btn
             v-if="active"
             size="xs"
@@ -78,12 +78,21 @@
     </div>
 
     <img
-      v-else-if="post.image"
-      :src="post.image"
+      v-else-if="postImages.length === 1"
+      :src="postImages[0]"
       :alt="post.caption || 'Visual post image'"
       loading="lazy"
       decoding="async"
       class="feed-image block bg-grey-1"
+    />
+
+    <video
+      v-else-if="postVideos.length"
+      controls
+      playsinline
+      :src="postVideos[0]"
+      class="feed-video block bg-grey-1"
+      preload="metadata"
     />
 
     <q-card-actions class="row items-center justify-between q-px-sm q-py-sm">
@@ -114,7 +123,16 @@
         >
           <q-tooltip>Comment</q-tooltip>
         </q-btn>
-        <q-btn flat round dense size="md" icon="bolt" color="blue-grey-10" aria-label="Zap post">
+        <q-btn
+          flat
+          round
+          dense
+          size="md"
+          icon="bolt"
+          color="blue-grey-10"
+          aria-label="Zap post"
+          @click="handleZap"
+        >
           <q-tooltip>Zap</q-tooltip>
         </q-btn>
       </div>
@@ -211,6 +229,7 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue'
 import UserAvatar from 'components/UserAvatar.vue'
+import { notifyInfo } from 'src/utils/notify'
 
 const props = defineProps({
   post: {
@@ -231,22 +250,32 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['like-post', 'comment-post'])
+const emit = defineEmits(['like-post', 'comment-post', 'zap-post'])
 
 const formattedDate = computed(() => props.formatDate(props.post.createdAt))
 const postImages = computed(() =>
   props.post.images?.length ? props.post.images : [props.post.image].filter(Boolean),
 )
+const postVideos = computed(() =>
+  props.post.videos?.length ? props.post.videos : [props.post.video].filter(Boolean),
+)
 const replies = computed(() => props.interaction?.replies || [])
 const likeCount = computed(() => props.interaction?.count || 0)
+const zapCount = computed(() => props.interaction?.zapCount || 0)
+const zapSats = computed(() => props.interaction?.sats || 0)
 const likedIcon = computed(() => (props.interaction?.likedByMe ? 'favorite' : 'favorite_border'))
 const likedColor = computed(() => (props.interaction?.likedByMe ? 'red-5' : undefined))
 const likeTooltip = computed(() => (props.interaction?.likedByMe ? 'Liked by you' : 'Like'))
 const engagementLabel = computed(() => {
   const likes = likeCount.value
   const comments = replies.value.length
-  if (likes || comments)
-    return `${likes} ${likes === 1 ? 'like' : 'likes'} · ${comments} ${comments === 1 ? 'comment' : 'comments'}`
+  const zaps = zapCount.value
+  const sats = zapSats.value
+  const parts = []
+  if (likes) parts.push(`${likes} ${likes === 1 ? 'like' : 'likes'}`)
+  if (zaps) parts.push(`${zaps} ${zaps === 1 ? 'zap' : 'zaps'} · ${sats} sats`)
+  if (comments) parts.push(`${comments} ${comments === 1 ? 'comment' : 'comments'}`)
+  if (parts.length) return parts.join(' · ')
   return props.post.nostr ? 'No reactions yet' : 'Local draft'
 })
 const commentsOpen = ref(false)
@@ -276,12 +305,29 @@ function publishComment() {
   emit('comment-post', content)
   commentDraft.value = ''
 }
+
+function handleZap() {
+  emit('zap-post')
+  notifyInfo(
+    'Zapping requires a Lightning address and a WebLN-enabled wallet. Full zap payment flow is not wired yet.',
+  )
+}
 </script>
 
 <style scoped>
 .feed-image {
   display: block;
   width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(78vh, 760px);
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.feed-video {
+  display: block;
+  width: 100%;
   max-width: 100%;
   height: auto;
   max-height: min(78vh, 760px);

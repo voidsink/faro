@@ -1,165 +1,153 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  buildMediaPostEvent,
-  buildReactionEvent,
-  buildReplyEvent,
-  buildReplyFilter,
   buildReactionFilter,
-  buildVisualFeedFilters,
-  extractReactionSummary,
-  mapReplyEvents,
+  buildReplyFilter,
+  buildZapFilter,
+  extractImageUrls,
+  extractVisualUrls,
+  extractZapSummary,
+  normalizeRelays,
 } from '../src/services/nostrRelay.js'
 
-const rootEvent = {
-  id: 'a'.repeat(64),
-  pubkey: 'b'.repeat(64),
-}
-
-const liker = 'c'.repeat(64)
-const commenter = 'd'.repeat(64)
-
-test('buildReactionFilter targets NIP-25 reactions by root event id', () => {
-  assert.deepEqual(buildReactionFilter([rootEvent.id], { limit: 50 }), {
-    kinds: [7],
-    '#e': [rootEvent.id],
-    limit: 50,
-  })
-})
-
-test('extractReactionSummary counts positive reactions and detects viewer like', () => {
-  const reactions = [
-    { id: '1', kind: 7, pubkey: liker, content: '+', tags: [['e', rootEvent.id], ['p', rootEvent.pubkey]] },
-    { id: '2', kind: 7, pubkey: 'e'.repeat(64), content: '🤙', tags: [['e', rootEvent.id]] },
-    { id: '3', kind: 7, pubkey: 'f'.repeat(64), content: '-', tags: [['e', rootEvent.id]] },
-  ]
-
-  assert.deepEqual(extractReactionSummary(reactions, rootEvent.id, liker), {
-    count: 2,
-    likedByMe: true,
-    reactions: [reactions[0], reactions[1]],
-  })
-})
-
-test('buildReplyFilter targets kind 1 replies by root event id', () => {
-  assert.deepEqual(buildReplyFilter([rootEvent.id], { limit: 80 }), {
-    kinds: [1],
-    '#e': [rootEvent.id],
-    limit: 80,
-  })
-})
-
-test('mapReplyEvents keeps only replies for the target and normalizes author references', () => {
-  const reply = {
-    id: '4',
-    kind: 1,
-    pubkey: commenter,
-    content: 'Nice photo',
-    created_at: 1710000000,
-    tags: [['e', rootEvent.id, '', 'root'], ['p', rootEvent.pubkey]],
-  }
-  const unrelated = {
-    id: '5',
-    kind: 1,
-    pubkey: commenter,
-    content: 'Elsewhere',
-    created_at: 1710000001,
-    tags: [['e', '0'.repeat(64)]],
-  }
-
-  assert.deepEqual(mapReplyEvents([unrelated, reply], rootEvent.id), [
-    {
-      id: reply.id,
-      eventId: rootEvent.id,
-      pubkey: commenter,
-      content: 'Nice photo',
-      createdAt: '2024-03-09T16:00:00.000Z',
-      tags: reply.tags,
-      event: reply,
-    },
+test('normalizeRelays trims and filters wss URLs', () => {
+  assert.deepEqual(normalizeRelays(['wss://relay.example///', '', 'ftp://bad']), [
+    'wss://relay.example',
   ])
 })
 
+test('extractVisualUrls separates images and videos from content', () => {
+  const event = {
+    content:
+      'Check this out https://example.com/photo.jpg and https://example.com/clip.mp4',
+    tags: [],
+  }
+  const { images, videos } = extractVisualUrls(event)
+  assert.deepEqual(images, ['https://example.com/photo.jpg'])
+  assert.deepEqual(videos, ['https://example.com/clip.mp4'])
+})
 
-test('buildMediaPostEvent creates a kind 1 media post with Blossom metadata tags', () => {
-  assert.deepEqual(
-    buildMediaPostEvent({
-      caption: '  Golden hour #Faro #nostr  ',
-      mediaUrl: 'https://blossom.example.com/abc.jpg',
-      media: {
-        sha256: 'a'.repeat(64),
-        mimeType: 'image/jpeg',
-        dimensions: '1080x1350',
-      },
-    }),
+test('extractVisualUrls reads urls from imeta and url tags', () => {
+  const event = {
+    content: '',
+    tags: [
+      ['url', 'https://cdn.example/media.webm'],
+      ['imeta', 'url https://cdn.example/alt.mov'],
+    ],
+  }
+  const { images, videos } = extractVisualUrls(event)
+  assert.deepEqual(images, [])
+  assert.deepEqual(videos, ['https://cdn.example/media.webm', 'https://cdn.example/alt.mov'])
+})
+
+test('extractImageUrls remains a convenience for images only', () => {
+  const event = {
+    content: 'https://a.com/pic.png https://a.com/movie.m4v',
+    tags: [],
+  }
+  assert.deepEqual(extractImageUrls(event), ['https://a.com/pic.png'])
+})
+
+test('buildZapFilter targets kind 9735 by event id', () => {
+  const ids = ['a'.repeat(64), 'b'.repeat(64)]
+  const filter = buildZapFilter(ids)
+  assert.deepEqual(filter.kinds, [9735])
+  assert.deepEqual(filter['#e'], ids)
+  assert.equal(filter.limit, 200)
+})
+
+test('extractZapSummary counts zap receipts and sums sats from bolt11', () => {
+  const eventId = 'c'.repeat(64)
+  const zaps = [
+    { kind: 9735, id: 'z1', tags: [['e', eventId], ['bolt11', 'lnbc10u1pv']] },
+    { kind: 9735, id: 'z2', tags: [['e', eventId], ['bolt11', 'lnbc100n1pv']] },
+    { kind: 9735, id: 'z3', tags: [['e', 'other']] },
+  ]
+  const summary = extractZapSummary(zaps, eventId)
+  assert.equal(summary.zapCount, 2)
+  assert.equal(summary.sats, 1010)
+  assert.equal(summary.msats, 1010000)
+})
+
+test('extractZapSummary prefers amount from zap request description', () => {
+  const eventId = 'd'.repeat(64)
+  const description = JSON.stringify({ tags: [['amount', '1234567']] })
+  const zaps = [
     {
-      kind: 1,
-      content: 'Golden hour #Faro #nostr https://blossom.example.com/abc.jpg',
+      kind: 9735,
+      id: 'z1',
       tags: [
-        ['url', 'https://blossom.example.com/abc.jpg'],
-        ['x', 'a'.repeat(64)],
-        ['m', 'image/jpeg'],
-        ['dim', '1080x1350'],
-        ['t', 'faro'],
-        ['t', 'nostr'],
+        ['e', eventId],
+        ['description', description],
+        ['bolt11', 'lnbc1u1pv'],
       ],
     },
-  )
+  ]
+  const summary = extractZapSummary(zaps, eventId)
+  assert.equal(summary.zapCount, 1)
+  assert.equal(summary.msats, 1234567)
+  assert.equal(summary.sats, 1234)
 })
 
-test('buildReactionEvent creates a NIP-25 like event for a visual post', () => {
-  assert.deepEqual(buildReactionEvent(rootEvent), {
-    kind: 7,
-    content: '+',
-    tags: [['e', rootEvent.id], ['p', rootEvent.pubkey]],
-  })
+test('extractZapSummary does not return a count key that could overwrite reaction counts', () => {
+  const eventId = 'e'.repeat(64)
+  const zaps = [
+    { kind: 9735, id: 'z1', tags: [['e', eventId], ['bolt11', 'lnbc5u1pv']] },
+  ]
+  const summary = extractZapSummary(zaps, eventId)
+  assert.equal(summary.zapCount, 1)
+  assert.equal(summary.sats, 500)
+  assert.ok(!('count' in summary))
 })
 
-test('buildReplyEvent creates a kind 1 root reply for a visual post', () => {
-  assert.deepEqual(buildReplyEvent(rootEvent, '  Great frame  '), {
-    kind: 1,
-    content: 'Great frame',
-    tags: [['e', rootEvent.id, '', 'root'], ['p', rootEvent.pubkey]],
-  })
+test('extractZapSummary returns zero counts when no receipts reference the event', () => {
+  const eventId = 'f'.repeat(64)
+  const zaps = [
+    { kind: 9735, id: 'z1', tags: [['e', 'other'], ['bolt11', 'lnbc1u1pv']] },
+    { kind: 1, id: 'n1', tags: [['e', eventId]] },
+  ]
+  const summary = extractZapSummary(zaps, eventId)
+  assert.equal(summary.zapCount, 0)
+  assert.equal(summary.sats, 0)
+  assert.equal(summary.msats, 0)
 })
 
-
-test('buildVisualFeedFilters includes the viewer and followed authors for logged-in feeds', () => {
-  const viewer = '1'.repeat(64)
-  const followed = '2'.repeat(64)
-
-  assert.deepEqual(buildVisualFeedFilters([viewer, followed], { limit: 12, since: 100, until: 200 }), [
-    {
-      kinds: [1],
-      authors: [viewer, followed],
-      limit: 48,
-      since: 100,
-      until: 200,
-    },
-  ])
+test('extractVisualUrls detects all required video extensions', () => {
+  const extensions = ['mp4', 'webm', 'ogv', 'mov', 'm4v']
+  const content = extensions.map((ext, index) => `https://x.com/v${index}.${ext}`).join(' ')
+  const { images, videos } = extractVisualUrls({ content, tags: [] })
+  assert.equal(images.length, 0)
+  assert.equal(videos.length, extensions.length)
+  for (const ext of extensions) {
+    assert.ok(videos.some((url) => url.endsWith(`.${ext}`)))
+  }
 })
 
-test('buildVisualFeedFilters omits authors for logged-out global feed requests', () => {
-  const [filter] = buildVisualFeedFilters([], { limit: 24, until: 200 })
-
-  assert.deepEqual(filter, {
-    kinds: [1],
-    limit: 96,
-    since: undefined,
-    until: 200,
-  })
-  assert.equal(Object.hasOwn(filter, 'authors'), false)
+test('extractVisualUrls is case-insensitive and ignores query strings', () => {
+  const event = {
+    content: 'https://x.com/clip.MP4?token=abc https://x.com/photo.JPG?size=2',
+    tags: [],
+  }
+  const { images, videos } = extractVisualUrls(event)
+  assert.deepEqual(images, ['https://x.com/photo.JPG?size=2'])
+  assert.deepEqual(videos, ['https://x.com/clip.MP4?token=abc'])
 })
 
-test('buildVisualFeedFilters allows overriding raw relay fetch size', () => {
-  const viewer = '1'.repeat(64)
-  const [filter] = buildVisualFeedFilters([viewer], { limit: 50, filterLimit: 120, until: 200 })
+test('extractVisualUrls deduplicates urls across content and tags', () => {
+  const event = {
+    content: 'Watch https://x.com/clip.mp4',
+    tags: [['url', 'https://x.com/clip.mp4']],
+  }
+  const { videos } = extractVisualUrls(event)
+  assert.deepEqual(videos, ['https://x.com/clip.mp4'])
+})
 
-  assert.deepEqual(filter, {
-    kinds: [1],
-    authors: [viewer],
-    limit: 120,
-    since: undefined,
-    until: 200,
-  })
+test('extractVisualUrls ignores non-visual urls', () => {
+  const event = {
+    content: 'https://x.com/page.html and https://x.com/file.pdf',
+    tags: [],
+  }
+  const { images, videos } = extractVisualUrls(event)
+  assert.deepEqual(images, [])
+  assert.deepEqual(videos, [])
 })

@@ -1,7 +1,7 @@
 import { acceptHMRUpdate, defineStore } from 'pinia'
 import { decode, npubEncode } from 'nostr-tools/nip19'
 import { authLabelForSource, safeIdentityForStorage } from 'src/services/auth/identity'
-import { loginWithNip07 as requestNip07Login, nip07Signer } from 'src/services/auth/nip07'
+import { loginWithNip07 as requestNip07Login, getNip07Pubkey, hasNip07Signer, nip07Signer } from 'src/services/auth/nip07'
 import { createRemoteSigner, secretKeyFromHex } from 'src/services/auth/nip46'
 import { loginWithPomegranate } from 'src/services/auth/pomegranate'
 import {
@@ -220,11 +220,36 @@ export const useSessionStore = defineStore('session', {
       this.message = `Logged in as ${shortKey(nextIdentity.pubkey)}.`
     },
 
+    clearAuthState(message = 'Logged out. Local posts were kept.') {
+      this.closeRemoteSigner()
+      localStorage.removeItem(identityKey)
+      localStorage.removeItem(legacyIdentityKey)
+      localStorage.removeItem(relayCacheKey)
+      this.identity = null
+      this.secretKey = null
+      this.relayProfile = {}
+      this.authorProfiles = {}
+      this.following = []
+      this.followers = []
+      this.relayPosts = []
+      this.interactionsByEventId = {}
+      this.pendingRelayEvents = []
+      this.closeLiveFeedSubscription()
+      this.relayCursor = null
+      this.hasMoreRelayPosts = false
+      this.loadingMoreRelayPosts = false
+      this.message = message
+    },
+
     async loginWithNip07() {
       try {
         this.closeRemoteSigner()
         const identity = await requestNip07Login(window)
+        const previousPubkey = this.identity?.pubkey
         this.secretKey = null
+        if (previousPubkey && previousPubkey !== identity.pubkey) {
+          this.message = 'Browser signer identity changed. Resetting Faro session.'
+        }
         this.saveIdentity(identity)
         await this.refreshFromNostr()
       } catch {
@@ -373,16 +398,37 @@ export const useSessionStore = defineStore('session', {
     },
 
     async activeSigner(action = 'publishing to Nostr') {
-      let signer = this.currentSigner()
+      let signer = await this.currentSigner()
       if (signer) return signer
+
       await this.reconnectRemoteSigner({ silent: true })
-      signer = this.currentSigner()
-      if (!signer) this.message = this.requireSignerMessage(action)
+      signer = await this.currentSigner()
+      if (!signer) {
+        if (this.identity || !this.message) {
+          this.message = this.requireSignerMessage(action)
+        }
+      }
       return signer
     },
 
-    currentSigner() {
-      if (this.identity?.source === 'nip07') return nip07Signer(window)
+    async currentSigner() {
+      if (this.identity?.source === 'nip07') {
+        if (!hasNip07Signer(window)) {
+          this.clearAuthState('Browser signer is no longer available. Please log in again.')
+          return null
+        }
+        const livePubkey = await getNip07Pubkey(window).catch(() => '')
+        if (!livePubkey) {
+          return null
+        }
+        if (livePubkey !== this.identity.pubkey) {
+          this.clearAuthState(
+            'Browser signer switched accounts. Please log in again with the new account.',
+          )
+          return null
+        }
+        return nip07Signer(window)
+      }
       if (
         (this.identity?.source === 'local-key' || this.identity?.source === 'nsec') &&
         this.secretKey
@@ -414,6 +460,9 @@ export const useSessionStore = defineStore('session', {
       if (!this.identity?.pubkey) {
         return `Sign in before ${action}.`
       }
+      if (this.identity.source === 'nip07') {
+        return 'Browser signer is not available. Please log in again.'
+      }
       if (this.identity.source === 'local-key' || this.identity.source === 'nsec') {
         return 'This session key is no longer available. Sign in or import it again.'
       }
@@ -426,31 +475,16 @@ export const useSessionStore = defineStore('session', {
     },
 
     logout() {
-      this.closeRemoteSigner()
-      localStorage.removeItem(identityKey)
-      localStorage.removeItem(legacyIdentityKey)
-      localStorage.removeItem(relayCacheKey)
-      this.identity = null
-      this.secretKey = null
-      this.relayProfile = {}
-      this.authorProfiles = {}
-      this.following = []
-      this.followers = []
-      this.relayPosts = []
-      this.interactionsByEventId = {}
-      this.pendingRelayEvents = []
-      this.closeLiveFeedSubscription()
-      this.relayCursor = null
-      this.hasMoreRelayPosts = false
-      this.loadingMoreRelayPosts = false
-      this.message = 'Logged out. Local posts were kept.'
+      this.clearAuthState('Logged out. Local posts were kept.')
       this.refreshFromNostr({ silent: true })
     },
 
     loadRelayCache() {
       const cache = readJson(relayCacheKey, null)
       if (!cache) return
-      if (cache.pubkey && cache.pubkey !== this.identity?.pubkey) {
+      // Reject anonymous cache when logged in, account cache when logged out,
+      // and any cache that belongs to a different account.
+      if (!this.identity?.pubkey || !cache.pubkey || cache.pubkey !== this.identity.pubkey) {
         localStorage.removeItem(relayCacheKey)
         return
       }
@@ -467,11 +501,14 @@ export const useSessionStore = defineStore('session', {
     },
 
     saveRelayCache() {
+      // Never persist relay cache without an authenticated pubkey; logged-out
+      // global feed data must not become reusable account cache.
+      if (!this.identity?.pubkey) return
       localStorage.setItem(
         relayCacheKey,
         JSON.stringify({
           relayProfile: normalizeProfile(this.relayProfile),
-          pubkey: this.identity?.pubkey || '',
+          pubkey: this.identity.pubkey,
           following: this.following,
           followers: this.followers,
           relayPosts: this.relayPosts.slice(0, RELAY_CACHE_LIMIT),
@@ -491,13 +528,17 @@ export const useSessionStore = defineStore('session', {
 
     addPublishedRelayPost({ event, mediaUrl, media, caption }) {
       if (!event?.id || !mediaUrl) return null
+      const isVideo = /^video\//.test(media?.mimeType || '')
       const post = {
         id: event.id,
         author: this.authorForPubkey(event.pubkey || this.identity?.pubkey || ''),
         caption: String(caption || '').trim(),
-        image: mediaUrl,
-        media: media || null,
-        ratio: '1:1',
+        image: isVideo ? '' : mediaUrl,
+        images: isVideo ? [] : [mediaUrl],
+        video: isVideo ? mediaUrl : '',
+        videos: isVideo ? [mediaUrl] : [],
+        isVideo,
+        ratio: media?.ratioKey || '1:1',
         createdAt: new Date((event.created_at || Date.now() / 1000) * 1000).toISOString(),
         source: 'relay kind 1',
         nostr: {
@@ -759,26 +800,35 @@ export const useSessionStore = defineStore('session', {
 
     postsFromVisualEvents(events) {
       return events
-        .filter((event) => event.imageUrls?.length)
-        .map((event) => ({
-          id: event.id,
-          author: this.authorForPubkey(event.pubkey),
-          caption: event.imageUrls
-            .reduce((content, image) => content.replace(image, ''), event.content || '')
-            .trim(),
-          image: event.imageUrls[0],
-          images: event.imageUrls,
-          ratio: '1:1',
-          createdAt: new Date((event.created_at || Date.now() / 1000) * 1000).toISOString(),
-          source: 'relay kind 1',
-          nostr: {
+        .filter((event) => event.imageUrls?.length || event.videoUrls?.length)
+        .map((event) => {
+          const firstImage = event.imageUrls?.[0]
+          const firstVideo = event.videoUrls?.[0]
+          const mediaUrls = [...(event.imageUrls || []), ...(event.videoUrls || [])]
+          const caption = mediaUrls
+            .reduce((content, url) => content.replace(url, ''), event.content || '')
+            .trim()
+          return {
             id: event.id,
-            pubkey: event.pubkey,
-            kind: event.kind,
-            tags: event.tags || [],
-            created_at: event.created_at,
-          },
-        }))
+            author: this.authorForPubkey(event.pubkey),
+            caption,
+            image: firstImage || '',
+            images: event.imageUrls || [],
+            video: firstVideo || '',
+            videos: event.videoUrls || [],
+            isVideo: Boolean(firstVideo && !firstImage),
+            ratio: '1:1',
+            createdAt: new Date((event.created_at || Date.now() / 1000) * 1000).toISOString(),
+            source: 'relay kind 1',
+            nostr: {
+              id: event.id,
+              pubkey: event.pubkey,
+              kind: event.kind,
+              tags: event.tags || [],
+              created_at: event.created_at,
+            },
+          }
+        })
     },
 
     async refreshInteractionsForPosts(posts) {
@@ -809,7 +859,14 @@ export const useSessionStore = defineStore('session', {
       const eventId = post?.nostr?.id
       if (!eventId) return null
       return {
-        ...(this.interactionsByEventId[eventId] || { count: 0, likedByMe: false, replies: [] }),
+        ...(this.interactionsByEventId[eventId] || {
+          count: 0,
+          likedByMe: false,
+          replies: [],
+          zapCount: 0,
+          sats: 0,
+          msats: 0,
+        }),
         publishing: Boolean(this.publishingInteractions[eventId]),
       }
     },
@@ -836,6 +893,9 @@ export const useSessionStore = defineStore('session', {
         count: 0,
         likedByMe: false,
         replies: [],
+        zapCount: 0,
+        sats: 0,
+        msats: 0,
       }
       this.interactionsByEventId = {
         ...this.interactionsByEventId,
@@ -883,6 +943,9 @@ export const useSessionStore = defineStore('session', {
         count: 0,
         likedByMe: false,
         replies: [],
+        zapCount: 0,
+        sats: 0,
+        msats: 0,
       }
       const reply = {
         id: result.event.id,
@@ -901,6 +964,36 @@ export const useSessionStore = defineStore('session', {
       await this.refreshInteractionsForPosts([post])
       this.saveRelayCache()
       return true
+    },
+
+    async zapPost(post) {
+      const rootEvent = this.rootEventForPost(post)
+      if (!rootEvent) {
+        this.message = 'Only relay posts can be zapped on Nostr.'
+        return
+      }
+
+      const authorProfile = normalizeProfile(this.authorProfiles[rootEvent.pubkey] || {})
+      const lightningAddress = authorProfile.lud16 || authorProfile.lud06
+      if (!lightningAddress) {
+        this.message = 'This author has no lightning address, so this post cannot be zapped yet.'
+        return
+      }
+
+      const signer = await this.activeSigner('zapping Nostr posts')
+      if (!signer) return
+
+      // Minimal real path: a full LNURL/NIP-57 flow needs an invoice fetch step.
+      // Without WebLN we cannot pay, so we explain instead of faking a success.
+      if (typeof window === 'undefined' || !window.webln?.sendPayment) {
+        this.message =
+          'Zapping requires a WebLN-enabled wallet (e.g. Alby) connected to your browser.'
+        return
+      }
+
+      // TODO: fetch LNURL callback for the lightning address, post a zap request,
+      // receive a bolt11 invoice, then pay it via window.webln.sendPayment.
+      this.message = `Zap flow is not fully wired yet. Author lightning address: ${lightningAddress}`
     },
 
     replyAuthor(reply) {

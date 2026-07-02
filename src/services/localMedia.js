@@ -1,4 +1,7 @@
+export const ORIGINAL_ASPECT_RATIO_KEY = 'original'
+
 export const ASPECT_RATIOS = {
+  [ORIGINAL_ASPECT_RATIO_KEY]: { label: 'Original', width: 0, height: 0, original: true },
   '1:1': { label: '1:1', width: 1, height: 1 },
   '4:3': { label: '4:3', width: 4, height: 3 },
   '16:9': { label: '16:9', width: 16, height: 9 },
@@ -18,7 +21,7 @@ function assertBrowserApi(name, value) {
   }
 }
 
-function getRatio(ratioKey) {
+export function getRatio(ratioKey) {
   return ASPECT_RATIOS[ratioKey] || ASPECT_RATIOS['1:1']
 }
 
@@ -46,7 +49,16 @@ function loadImage(src) {
   })
 }
 
-function calculateCrop(sourceWidth, sourceHeight, ratio) {
+export function calculateCrop(sourceWidth, sourceHeight, ratio) {
+  if (ratio.original) {
+    return {
+      sx: 0,
+      sy: 0,
+      sw: sourceWidth,
+      sh: sourceHeight,
+    }
+  }
+
   const targetRatio = ratio.width / ratio.height
   const sourceRatio = sourceWidth / sourceHeight
 
@@ -69,7 +81,7 @@ function calculateCrop(sourceWidth, sourceHeight, ratio) {
   }
 }
 
-function calculateOutputSize(cropWidth, cropHeight) {
+export function calculateOutputSize(cropWidth, cropHeight) {
   const longestSide = Math.max(cropWidth, cropHeight)
   const scale = longestSide > MAX_IMAGE_SIDE ? MAX_IMAGE_SIDE / longestSide : 1
 

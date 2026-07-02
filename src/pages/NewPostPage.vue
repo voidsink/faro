@@ -230,7 +230,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import LoginDialog from 'components/auth/LoginDialog.vue'
-import { ASPECT_RATIOS, processImageFile } from 'src/services/localMedia'
+import { ASPECT_RATIOS, ORIGINAL_ASPECT_RATIO_KEY, processImageFile } from 'src/services/localMedia'
 import { loadBlossomServers, uploadBlobToBlossom } from 'src/services/blossom'
 import { publishMediaPost } from 'src/services/nostrRelay'
 import { useSessionStore } from 'src/stores/session-store'
@@ -244,7 +244,7 @@ const step = ref(1)
 const caption = ref('')
 const imagePreview = ref('')
 const processedMedia = ref(null)
-const selectedRatio = ref('1:1')
+const selectedRatio = ref(ORIGINAL_ASPECT_RATIO_KEY)
 const selectedFile = ref(null)
 const publishing = ref(false)
 const publishMode = ref('')
@@ -252,12 +252,26 @@ const loginDialogOpen = ref(false)
 const galleryInput = ref(null)
 const cameraInput = ref(null)
 
-const ratioOptions = Object.keys(ASPECT_RATIOS).map((ratio) => ({ label: ratio, value: ratio }))
-const previewRatio = computed(() => ratioToNumber(selectedRatio.value))
-const previewFrameStyle = computed(() => ({
-  aspectRatio: String(previewRatio.value),
-  '--preview-ratio': previewRatio.value,
+const ratioOptions = Object.keys(ASPECT_RATIOS).map((ratio) => ({
+  label: ASPECT_RATIOS[ratio].label,
+  value: ratio,
 }))
+const previewRatio = computed(() => ratioToNumber(selectedRatio.value))
+const previewFrameStyle = computed(() => {
+  const ratio = ASPECT_RATIOS[selectedRatio.value] || ASPECT_RATIOS['1:1']
+  const numeric = previewRatio.value
+  const aspectRatio =
+    ratio.original && processedMedia.value
+      ? `${processedMedia.value.width} / ${processedMedia.value.height}`
+      : ratio.width && ratio.height
+        ? `${ratio.width} / ${ratio.height}`
+        : String(numeric)
+
+  return {
+    aspectRatio,
+    '--preview-ratio': numeric,
+  }
+})
 const canSaveLocally = computed(() =>
   Boolean(identity.value && imagePreview.value && !publishing.value),
 )
@@ -338,6 +352,13 @@ async function processSelectedImage() {
 
 function ratioToNumber(ratio) {
   const value = ASPECT_RATIOS[ratio] || ASPECT_RATIOS['1:1']
+  if (value?.original) {
+    const media = processedMedia.value
+    if (media?.width && media?.height) {
+      return media.width / media.height
+    }
+    return 1
+  }
   return value.width / value.height
 }
 

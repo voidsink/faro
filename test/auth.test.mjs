@@ -6,6 +6,12 @@ import {
   safeIdentityForStorage,
 } from '../src/services/auth/identity.js'
 import {
+  getNip07Pubkey,
+  hasNip07Signer,
+  loginWithNip07,
+  nip07Signer,
+} from '../src/services/auth/nip07.js'
+import {
   createKeypair,
   keypairFromSecretKey,
   makeLocalSigner,
@@ -159,4 +165,66 @@ test('safeRemoteSignerIdentity keeps only safe metadata', () => {
   assert.deepEqual(identity.relays, parsed.relays)
   assert.equal(identity.secret, undefined)
   assert.equal(identity.raw, undefined)
+})
+
+function makeMockWindow(pubkey = '') {
+  return {
+    nostr: {
+      getPublicKey: () => Promise.resolve(pubkey),
+      signEvent: (event) => Promise.resolve({ ...event, sig: 'mock-sig' }),
+    },
+  }
+}
+
+test('hasNip07Signer detects a browser signer and rejects missing APIs', () => {
+  assert.equal(hasNip07Signer(makeMockWindow('a'.repeat(64))), true)
+  assert.equal(hasNip07Signer({ nostr: { getPublicKey: () => {} } }), false)
+  assert.equal(hasNip07Signer({ nostr: { signEvent: () => {} } }), false)
+  assert.equal(hasNip07Signer({}), false)
+  assert.equal(hasNip07Signer(undefined), false)
+})
+
+test('getNip07Pubkey returns the live pubkey from the browser signer', async () => {
+  const pubkey = 'a'.repeat(64)
+  const win = makeMockWindow(pubkey)
+  assert.equal(await getNip07Pubkey(win), pubkey)
+})
+
+test('getNip07Pubkey throws when no browser signer is present', async () => {
+  await assert.rejects(() => getNip07Pubkey({}), /No browser signer detected/)
+})
+
+test('loginWithNip07 fetches a fresh pubkey every login', async () => {
+  const pubkey = 'b'.repeat(64)
+  const win = makeMockWindow(pubkey)
+  const identity = await loginWithNip07(win)
+  assert.deepEqual(identity, { pubkey, source: 'nip07' })
+})
+
+test('nip07Signer returns the browser signer API', () => {
+  const win = makeMockWindow('c'.repeat(64))
+  assert.equal(nip07Signer(win), win.nostr)
+  assert.equal(nip07Signer({}), null)
+})
+
+test('loginWithNip07 fetches a fresh pubkey when the signer account has switched', async () => {
+  const originalPubkey = 'd'.repeat(64)
+  const switchedPubkey = 'e'.repeat(64)
+  let callCount = 0
+  const win = {
+    nostr: {
+      getPublicKey: () => {
+        callCount += 1
+        return Promise.resolve(callCount === 1 ? originalPubkey : switchedPubkey)
+      },
+      signEvent: (event) => Promise.resolve({ ...event, sig: 'mock-sig' }),
+    },
+  }
+
+  const first = await loginWithNip07(win)
+  assert.equal(first.pubkey, originalPubkey)
+
+  const second = await loginWithNip07(win)
+  assert.equal(second.pubkey, switchedPubkey)
+  assert.equal(second.source, 'nip07')
 })

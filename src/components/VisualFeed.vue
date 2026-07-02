@@ -88,6 +88,7 @@
             :format-date="formatDate"
             @like-post="$emit('like-post', post)"
             @comment-post="(content) => $emit('comment-post', post, content)"
+            @zap-post="$emit('zap-post', post)"
           />
         </div>
 
@@ -144,6 +145,7 @@ const emit = defineEmits([
   'update:twoColumnFeed',
   'like-post',
   'comment-post',
+  'zap-post',
   'show-pending',
 ])
 

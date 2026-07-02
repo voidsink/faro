@@ -34,6 +34,7 @@
             :reply-author="session.replyAuthor"
             @like-post="session.likePost"
             @comment-post="session.commentOnPost"
+            @zap-post="session.zapPost"
             @load-more="loadMoreFeed"
             @refresh="refreshFeed"
             @show-pending="session.mergePendingRelayPosts"
