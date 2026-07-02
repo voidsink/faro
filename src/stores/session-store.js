@@ -1,7 +1,12 @@
 import { acceptHMRUpdate, defineStore } from 'pinia'
 import { decode, npubEncode } from 'nostr-tools/nip19'
 import { authLabelForSource, safeIdentityForStorage } from 'src/services/auth/identity'
-import { loginWithNip07 as requestNip07Login, getNip07Pubkey, hasNip07Signer, nip07Signer } from 'src/services/auth/nip07'
+import {
+  loginWithNip07 as requestNip07Login,
+  getNip07Pubkey,
+  hasNip07Signer,
+  nip07Signer,
+} from 'src/services/auth/nip07'
 import { createRemoteSigner, secretKeyFromHex } from 'src/services/auth/nip46'
 import { loginWithPomegranate } from 'src/services/auth/pomegranate'
 import {

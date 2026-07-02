@@ -5,7 +5,7 @@ export const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
   'wss://relay.primal.net',
-  'wss://relay.nostr.band',
+  'wss://relay.nostr.com',
 ]
 export const RELAYS_STORAGE_KEY = 'faro-relays'
 
@@ -122,10 +122,6 @@ function isVideoUrl(url) {
   } catch {
     return false
   }
-}
-
-function isVisualUrl(url) {
-  return isImageUrl(url) || isVideoUrl(url)
 }
 
 function readTagValue(tag) {
@@ -522,7 +518,9 @@ export function extractZapSummary(events, eventId) {
   let sats = 0
   let msats = 0
   for (const event of zaps) {
-    const description = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === 'description')?.[1]
+    const description = event.tags?.find(
+      (tag) => Array.isArray(tag) && tag[0] === 'description',
+    )?.[1]
     const descriptionMsats = parseZapRequestAmount(description)
     if (descriptionMsats) {
       msats += descriptionMsats
