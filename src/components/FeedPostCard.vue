@@ -25,13 +25,17 @@
     <div v-if="postImages.length > 1" class="relative-position bg-grey-1">
       <q-carousel
         v-model="activeImage"
-        animated
+        swipeable
         arrows
+        animated
+        transition-prev="slide-right"
+        transition-next="slide-left"
         navigation
         navigation-icon="fiber_manual_record"
         navigation-active-icon="fiber_manual_record"
         height="auto"
         class="feed-carousel"
+        control-type="flat"
         control-color="blue-grey-10"
       >
         <q-carousel-slide
@@ -44,10 +48,32 @@
             :src="image"
             :alt="post.caption || `Visual post image ${index + 1}`"
             loading="lazy"
-            decoding="async"
+            spinner-color="white"
             class="feed-image block"
           />
         </q-carousel-slide>
+        <template v-slot:navigation-icon="{ active, btnProps, onClick }">
+          <q-btn
+            v-if="active"
+            size="xs"
+            :icon="btnProps.icon"
+            color="light-blue-5"
+            round
+            flat
+            dense
+            @click="onClick"
+          />
+          <q-btn
+            v-else
+            size="xs"
+            :icon="btnProps.icon"
+            color="white"
+            round
+            flat
+            dense
+            @click="onClick"
+          />
+        </template>
       </q-carousel>
     </div>
 
@@ -277,15 +303,7 @@ function publishComment() {
   overflow-wrap: anywhere;
 }
 
-.feed-carousel :deep(.q-carousel__navigation-inner) {
-  gap: 6px;
-}
-
-.feed-carousel :deep(.q-carousel__navigation-icon) {
-  font-size: 8px;
-}
-
-.feed-carousel :deep(.q-carousel__arrow) {
+.feed-carousel :deep(.q-carousel__arrow .q-btn) {
   background: rgba(255, 255, 255, 0.86);
   color: #263238;
 }

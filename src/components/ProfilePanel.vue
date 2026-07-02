@@ -136,7 +136,14 @@ defineEmits(['open-login', 'logout'])
 }
 
 .profile-cover-gradient {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background: #f9da7d;
+  background: linear-gradient(
+    45deg,
+    rgba(249, 218, 125, 1) 0%,
+    rgba(239, 82, 51, 1) 33%,
+    rgba(243, 28, 165, 1) 66%,
+    rgba(89, 44, 207, 1) 100%
+  );
 }
 
 .profile-avatar-wrap {

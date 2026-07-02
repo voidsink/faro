@@ -1,7 +1,11 @@
 <template>
   <q-card flat bordered class="faro-surface q-mb-md">
     <q-toolbar class="toolbar q-px-md">
-      <q-toolbar-title class="brand-title">Faro</q-toolbar-title>
+      <q-avatar>
+        <img src="~/assets/faro.svg" />
+      </q-avatar>
+
+      <q-toolbar-title class="brand-title q-pl-xs">faro</q-toolbar-title>
 
       <div class="nav-actions row items-center no-wrap q-gutter-sm">
         <q-btn flat round icon="home" aria-label="Home" to="/" />
@@ -59,7 +63,7 @@ defineEmits(['refresh'])
 }
 
 .brand-title {
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
