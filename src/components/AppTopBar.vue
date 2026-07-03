@@ -8,17 +8,30 @@
       <q-toolbar-title class="brand-title q-pl-xs">faro</q-toolbar-title>
 
       <div class="nav-actions row items-center no-wrap q-gutter-sm">
-        <q-btn flat round icon="home" aria-label="Home" to="/" />
-        <q-btn flat round icon="add_box" aria-label="New post" to="/new" />
-        <q-btn flat round icon="settings" aria-label="Settings" to="/settings" />
-        <q-btn flat round aria-label="Profile" to="/profile">
-          <user-avatar
-            size="32px"
-            :name="displayName"
-            :pubkey="identity?.pubkey"
-            :picture="activeProfile.picture"
-          />
-        </q-btn>
+        <template v-if="identity">
+          <q-btn flat round icon="home" aria-label="Home" to="/" />
+          <q-btn flat round icon="add_box" aria-label="New post" to="/new" />
+          <q-btn flat round icon="settings" aria-label="Settings" to="/settings" />
+          <q-btn flat round aria-label="Profile" to="/profile">
+            <user-avatar
+              size="32px"
+              :name="displayName"
+              :pubkey="identity?.pubkey"
+              :picture="activeProfile.picture"
+            />
+          </q-btn>
+        </template>
+        <q-btn
+          v-else
+          unelevated
+          rounded
+          no-caps
+          color="dark"
+          icon="login"
+          label="Sign in"
+          aria-label="Sign in"
+          @click="$emit('open-login')"
+        />
         <q-btn
           flat
           round
@@ -54,7 +67,7 @@ defineProps({
   },
 })
 
-defineEmits(['refresh'])
+defineEmits(['refresh', 'open-login'])
 </script>
 
 <style scoped>
