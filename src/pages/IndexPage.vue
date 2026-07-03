@@ -8,6 +8,7 @@
         :refreshing="refreshing"
         class="q-mb-md"
         @refresh="refreshFeed"
+        @open-login="loginDialogOpen = true"
       />
 
       <login-dialog
