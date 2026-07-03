@@ -157,7 +157,7 @@
         class="q-mt-xs q-mb-none text-body2"
         :class="{ 'caption-clamped': captionLong && !captionExpanded }"
       >
-        <span class="text-weight-bold">{{ post.author.name }}</span>
+        <span class="text-weight-bold q-mr-sm">{{ post.author.name }}</span>
         <caption-with-hashtags :text="post.caption" />
       </p>
       <div v-if="captionLong" class="q-mt-xs">
