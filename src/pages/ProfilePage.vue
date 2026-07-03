@@ -18,7 +18,7 @@
             <div>
               <h1 class="q-ma-none">{{ displayName }}</h1>
               <p class="q-ma-none text-blue-grey-6">
-                {{ profile.nip05 || shortKey(pubkey) || 'Nostr profile' }}
+                {{ profile.nip05 || shortKey(pubkey) || 'Sign in to view your profile' }}
               </p>
               <p v-if="profile.about" class="bio q-mt-sm q-mb-none text-blue-grey-6">
                 {{ profile.about }}
@@ -40,6 +40,17 @@
           <div class="row q-gutter-sm">
             <q-btn flat round icon="home" aria-label="Home" to="/" />
             <q-btn
+              v-if="isOwnProfile"
+              outline
+              color="dark"
+              no-caps
+              icon="logout"
+              label="Logout"
+              @click="logout"
+            />
+            <q-btn v-else-if="!pubkey" unelevated color="dark" no-caps label="Sign in" to="/" />
+            <q-btn
+              v-else
               unelevated
               color="dark"
               no-caps
@@ -131,10 +142,14 @@ const profile = computed(() => {
   return cached
 })
 const displayName = computed(() => {
+  if (!pubkey.value) return 'Not logged in'
   const name = profile.value.display_name || profile.value.name
   if (name) return name
   return session.shortKey(pubkey.value) || 'Faro user'
 })
+const isOwnProfile = computed(() =>
+  Boolean(pubkey.value && pubkey.value === identity.value?.pubkey),
+)
 const localProfilePosts = computed(() =>
   pubkey.value === identity.value?.pubkey
     ? localPosts.value.filter((post) => post.author?.pubkey === pubkey.value)
@@ -207,6 +222,10 @@ async function fetchProfileContent(nextPubkey) {
 
 function shortKey(pubkey = '') {
   return session.shortKey(pubkey)
+}
+
+function logout() {
+  session.logout()
 }
 </script>
 

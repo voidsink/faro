@@ -201,20 +201,27 @@ export const useSessionStore = defineStore('session', {
 
     loadIdentity() {
       const current = safeIdentityForStorage(readJson(identityKey, null))
-      if (current?.pubkey) return current
+      if (current?.sessionOnly) {
+        localStorage.removeItem(identityKey)
+      } else if (current?.pubkey) {
+        return current
+      }
 
       const legacy = safeIdentityForStorage(readJson(legacyIdentityKey, null))
       if (legacy?.pubkey) {
-        localStorage.setItem(identityKey, JSON.stringify(legacy))
         localStorage.removeItem(legacyIdentityKey)
-        return legacy
       }
 
       return null
     },
 
     saveIdentity(nextIdentity) {
-      localStorage.setItem(identityKey, JSON.stringify(safeIdentityForStorage(nextIdentity)))
+      const safeIdentity = safeIdentityForStorage(nextIdentity)
+      if (safeIdentity?.sessionOnly) {
+        localStorage.removeItem(identityKey)
+      } else {
+        localStorage.setItem(identityKey, JSON.stringify(safeIdentity))
+      }
       this.identity = nextIdentity
       this.relayProfile = {}
       this.following = []
