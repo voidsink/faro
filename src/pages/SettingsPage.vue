@@ -147,10 +147,7 @@
             </q-item-section>
             <q-item-section>
               <q-item-label>Notifications</q-item-label>
-              <q-item-label caption
-                >Next step: keep a lightweight subscription open and show “X new posts” instead of
-                auto-jumping the feed.</q-item-label
-              >
+              <q-item-label caption>Coming soon</q-item-label>
             </q-item-section>
             <q-item-section side>
               <q-toggle v-model="notificationsEnabled" disable />
