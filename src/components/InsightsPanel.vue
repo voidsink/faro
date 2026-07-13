@@ -8,9 +8,9 @@
       {{ followingCount }} follows · {{ relayPostsCount }} relays
     </p>
 
-    <div class="bars row items-end q-py-md q-pb-xs q-gutter-sm" aria-hidden="true">
+    <!-- <div class="bars row items-end q-py-md q-pb-xs q-gutter-sm" aria-hidden="true">
       <i v-for="height in barHeights" :key="height" class="col" :style="{ height: `${height}%` }" />
-    </div>
+    </div> -->
 
     <strong>Suggestions For You</strong>
     <q-list class="q-mt-sm">
@@ -61,7 +61,7 @@ defineProps({
   },
 })
 
-const barHeights = [42, 74, 28, 55, 82, 12, 50]
+// const barHeights = [42, 74, 28, 55, 82, 12, 50]
 </script>
 
 <style scoped>

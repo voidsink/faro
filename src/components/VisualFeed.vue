@@ -3,7 +3,7 @@
     <div class="row items-center justify-between q-col-gutter-sm q-mx-sm">
       <h2 class="text-h6 text-weight-bolder q-ma-none">Visual feed</h2>
       <div class="col-auto row items-center q-col-gutter-sm">
-        <div class="col-auto">
+        <div class="col-auto" v-if="!isMobile">
           <q-checkbox
             v-model="twoColumnFeedProxy"
             checked-icon="calendar_view_day"

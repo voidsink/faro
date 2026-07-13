@@ -1,24 +1,41 @@
 <template>
   <q-card flat bordered class="faro-surface q-mb-md">
     <q-toolbar class="toolbar q-px-md">
-      <q-avatar>
-        <img src="~/assets/faro.svg" />
-      </q-avatar>
-
+      <q-btn flat round dense aria-label="Home" to="/">
+        <q-avatar>
+          <img src="~/assets/faro.svg" />
+        </q-avatar>
+      </q-btn>
       <q-toolbar-title class="brand-title q-pl-xs">faro</q-toolbar-title>
 
       <div class="nav-actions row items-center no-wrap q-gutter-sm">
         <template v-if="identity">
-          <q-btn flat round icon="home" aria-label="Home" to="/" />
           <q-btn flat round icon="add_box" aria-label="New post" to="/new" />
-          <q-btn flat round icon="settings" aria-label="Settings" to="/settings" />
-          <q-btn flat round aria-label="Profile" to="/profile">
-            <user-avatar
+          <q-btn round>
+            <q-avatar v-if="activeProfile?.picture">
+              <q-img :src="activeProfile.picture" :alt="displayName" ratio="1" />
+            </q-avatar>
+            <q-avatar
+              v-else
               size="32px"
-              :name="displayName"
-              :pubkey="identity?.pubkey"
-              :picture="activeProfile.picture"
-            />
+              color="grey-6"
+              text-color="white"
+              :icon="!activeProfile?.picture ? 'person' : null"
+            >
+            </q-avatar>
+            <q-menu class="bg-white text-black" auto-close>
+              <q-list style="min-width: 100px">
+                <q-item clickable v-close-popup to="/profile" aria-label="Profile">
+                  <q-item-section>Profile</q-item-section>
+                </q-item>
+                <q-item clickable v-close-popup to="/settings" aria-label="Settings">
+                  <q-item-section>Settings</q-item-section>
+                </q-item>
+                <q-item clickable v-close-popup @click="$emit('logout')" aria-label="Sign out">
+                  <q-item-section>Sign out</q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
           </q-btn>
         </template>
         <q-btn
@@ -32,21 +49,13 @@
           aria-label="Sign in"
           @click="$emit('open-login')"
         />
-        <q-btn
-          flat
-          round
-          icon="refresh"
-          :loading="refreshing"
-          aria-label="Refresh"
-          @click="$emit('refresh')"
-        />
       </div>
     </q-toolbar>
   </q-card>
 </template>
 
 <script setup>
-import UserAvatar from 'components/UserAvatar.vue'
+// import UserAvatar from 'components/UserAvatar.vue'
 
 defineProps({
   identity: {
@@ -67,7 +76,7 @@ defineProps({
   },
 })
 
-defineEmits(['refresh', 'open-login'])
+defineEmits(['refresh', 'open-login', 'logout'])
 </script>
 
 <style scoped>

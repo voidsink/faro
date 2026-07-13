@@ -9,6 +9,7 @@
         class="q-mb-md"
         @refresh="refreshFeed"
         @open-login="loginDialogOpen = true"
+        @logout="logout"
       />
 
       <login-dialog
@@ -120,6 +121,10 @@ onMounted(() => {
 watch(identity, (nextIdentity) => {
   if (nextIdentity?.pubkey) loginDialogOpen.value = false
 })
+
+function logout() {
+  session.logout()
+}
 
 async function loginWithNip07() {
   await session.loginWithNip07()
