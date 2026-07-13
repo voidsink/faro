@@ -202,6 +202,7 @@ async function fetchProfileContent(nextPubkey) {
     const visualResult = await fetchVisualFeed([nextPubkey], {
       limit: 60,
       timeoutMs: 7500,
+      anonymous: !session.identity?.pubkey,
     })
 
     if (!visualResult.ok) {

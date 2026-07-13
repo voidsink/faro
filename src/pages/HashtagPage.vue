@@ -126,6 +126,7 @@ async function fetchTagPosts() {
       tags: [tag.value],
       limit: 60,
       timeoutMs: 7500,
+      anonymous: !identity.value?.pubkey,
     })
 
     if (!visualResult.ok) {

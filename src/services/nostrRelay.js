@@ -106,6 +106,7 @@ export function saveRelays(relays) {
 }
 
 export function relaysForOptions(options = {}) {
+  if (options.anonymous) return normalizeRelays([...DEFAULT_RELAYS])
   const configured = loadRelays()
   const hinted = options.relays ? normalizeRelays(options.relays) : []
   return normalizeRelays([...configured, ...hinted, ...DEFAULT_RELAYS])

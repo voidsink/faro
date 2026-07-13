@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  DEFAULT_RELAYS,
   buildVisualFeedFilters,
   buildReactionFilter,
   buildReplyFilter,
@@ -11,8 +12,22 @@ import {
   loadFollowedHashtags,
   normalizeHashtags,
   normalizeRelays,
+  relaysForOptions,
   saveFollowedHashtags,
 } from '../src/services/nostrRelay.js'
+
+test('anonymous relay requests ignore saved relay settings', () => {
+  const originalLocalStorage = globalThis.localStorage
+  globalThis.localStorage = {
+    getItem: () => JSON.stringify(['wss://private.example', 'wss://another.example']),
+  }
+
+  try {
+    assert.deepEqual(relaysForOptions({ anonymous: true }), DEFAULT_RELAYS)
+  } finally {
+    globalThis.localStorage = originalLocalStorage
+  }
+})
 
 test('normalizeRelays trims and filters wss URLs', () => {
   assert.deepEqual(normalizeRelays(['wss://relay.example///', '', 'ftp://bad']), [

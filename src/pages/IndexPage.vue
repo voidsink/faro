@@ -23,9 +23,26 @@
         @import-nsec="importNsec"
       />
 
+      <q-dialog v-if="!identity" v-model="anonymousNoticeOpen" persistent>
+        <q-card class="q-pa-md" style="max-width: 420px">
+          <q-card-section class="q-px-sm q-pt-sm">
+            <div class="text-h6 text-weight-bold">Before you explore</div>
+            <p class="q-mb-none text-blue-grey-7">
+              Faro requests posts from Nostr relays. It cannot filter or censor what those relays
+              return, so unintended content may appear.
+            </p>
+          </q-card-section>
+          <q-card-actions align="right" class="q-px-sm q-pb-sm q-gutter-sm">
+            <q-btn flat no-caps label="Don’t show — I’ll follow people" @click="loginDialogOpen = true" />
+            <q-btn unelevated color="dark" no-caps label="I understand, show me" @click="anonymousNoticeOpen = false" />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
       <div class="row items-start justify-center q-col-gutter-md">
         <section class="col-12 col-md column q-gutter-y-md overflow-hidden">
           <visual-feed
+            v-if="identity || !anonymousNoticeOpen"
             v-model:two-column-feed="twoColumnFeed"
             :posts="combinedFeed"
             :refreshing="refreshing"
@@ -113,13 +130,17 @@ const {
 
 const twoColumnFeed = ref(false)
 const loginDialogOpen = ref(false)
+const anonymousNoticeOpen = ref(true)
 
 onMounted(() => {
   session.init()
 })
 
 watch(identity, (nextIdentity) => {
-  if (nextIdentity?.pubkey) loginDialogOpen.value = false
+  if (nextIdentity?.pubkey) {
+    loginDialogOpen.value = false
+    anonymousNoticeOpen.value = false
+  }
 })
 
 function logout() {

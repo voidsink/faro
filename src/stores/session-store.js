@@ -625,17 +625,19 @@ export const useSessionStore = defineStore('session', {
 
         const authors = this.feedAuthors()
         const latest = this.latestRelayPostTimestamp()
+        const anonymous = !this.identity?.pubkey
         const visualResult = await fetchVisualFeed(authors, {
           limit: silent && !this.relayPosts.length ? INITIAL_FEED_LIMIT : FEED_PAGE_SIZE,
           relays: followingResult.relayHints,
           tags: this.followedHashtags,
+          anonymous,
           since: !silent && latest ? latest + 1 : daysAgoSeconds(INITIAL_LOOKBACK_DAYS),
         })
 
         if (visualResult.ok) {
           const events = visualResult.events
           const pubkeys = [...new Set(events.map((event) => event.pubkey).filter(Boolean))]
-          await this.hydrateAuthorProfiles(pubkeys)
+          await this.hydrateAuthorProfiles(pubkeys, { anonymous })
 
           const nextPosts = this.postsFromVisualEvents(events)
           this.relayPosts = silent ? nextPosts : this.mergeRelayPosts(nextPosts)
@@ -675,10 +677,12 @@ export const useSessionStore = defineStore('session', {
       this.loadingMoreRelayPosts = true
       try {
         const authors = this.feedAuthors()
+        const anonymous = !this.identity?.pubkey
         const visualResult = await fetchVisualFeed(authors, {
           limit: FEED_PAGE_SIZE,
           until,
           tags: this.followedHashtags,
+          anonymous,
           timeoutMs: 6500,
         })
 
@@ -686,7 +690,7 @@ export const useSessionStore = defineStore('session', {
 
         const events = visualResult.events
         const pubkeys = [...new Set(events.map((event) => event.pubkey).filter(Boolean))]
-        await this.hydrateAuthorProfiles(pubkeys)
+        await this.hydrateAuthorProfiles(pubkeys, { anonymous })
 
         const existing = new Set(this.relayPosts.map((post) => post.id))
         const nextPosts = this.postsFromVisualEvents(events).filter(
@@ -777,14 +781,14 @@ export const useSessionStore = defineStore('session', {
       this.saveRelayCache()
     },
 
-    async hydrateAuthorProfiles(pubkeys) {
+    async hydrateAuthorProfiles(pubkeys, options = {}) {
       const missing = pubkeys
         .filter((pubkey) => pubkey && !this.authorProfiles[pubkey])
         .slice(0, 20)
       if (!missing.length) return
       const entries = await Promise.all(
         missing.map(async (pubkey) => {
-          const result = await fetchProfile(pubkey, { timeoutMs: 4500 })
+          const result = await fetchProfile(pubkey, { ...options, timeoutMs: 4500 })
           const profile = result.ok ? normalizeProfile(result.profile) : {}
           return [pubkey, profile]
         }),
@@ -800,7 +804,10 @@ export const useSessionStore = defineStore('session', {
       const hexPubkey = this.resolvePubkey(pubkey)
       if (!hexPubkey) return
       try {
-        const result = await fetchProfile(hexPubkey, { timeoutMs: 4500 })
+        const result = await fetchProfile(hexPubkey, {
+          anonymous: !this.identity?.pubkey,
+          timeoutMs: 4500,
+        })
         this.authorProfiles = {
           ...this.authorProfiles,
           [hexPubkey]: { ...(result.ok ? normalizeProfile(result.profile) : {}), __fetched: true },
