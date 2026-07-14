@@ -23,20 +23,12 @@
         @import-nsec="importNsec"
       />
 
-      <q-dialog v-if="!identity" v-model="anonymousNoticeOpen" persistent>
-        <q-card class="q-pa-md" style="max-width: 420px">
-          <q-card-section class="q-px-sm q-pt-sm">
-            <div class="text-h6 text-weight-bold">The global feed is unfiltered</div>
-            <p class="q-mb-none text-blue-grey-7">
-              Faro reads public posts from Nostr relays. You may see anything those relays return.
-            </p>
-          </q-card-section>
-          <q-card-actions align="right" class="q-px-sm q-pb-sm q-gutter-sm">
-            <q-btn flat no-caps label="Don’t show — I’ll follow people" @click="followPeopleInstead" />
-            <q-btn unelevated color="dark" no-caps label="I understand, show me" @click="showAnonymousFeed" />
-          </q-card-actions>
-        </q-card>
-      </q-dialog>
+      <anonymous-feed-dialog
+        v-if="!identity"
+        v-model="anonymousNoticeOpen"
+        @follow-people="followPeopleInstead"
+        @show-feed="showAnonymousFeed"
+      />
 
       <div class="row items-start justify-center q-col-gutter-md">
         <section class="col-12 col-md column q-gutter-y-md overflow-hidden">
@@ -102,6 +94,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import AppTopBar from 'components/AppTopBar.vue'
+import AnonymousFeedDialog from 'components/AnonymousFeedDialog.vue'
 import LoginDialog from 'components/auth/LoginDialog.vue'
 import InsightsPanel from 'components/InsightsPanel.vue'
 import ProfilePanel from 'components/ProfilePanel.vue'
