@@ -609,7 +609,7 @@ export const useSessionStore = defineStore('session', {
             ])
           : [
               { ok: false, profile: {} },
-              { ok: false, pubkeys: [], relayHints: [] },
+              { ok: false, pubkeys: [] },
             ]
 
         let refreshed = false
@@ -629,7 +629,6 @@ export const useSessionStore = defineStore('session', {
         const anonymous = !this.identity?.pubkey
         const visualResult = await fetchVisualFeed(authors, {
           limit: silent && !this.relayPosts.length ? INITIAL_FEED_LIMIT : FEED_PAGE_SIZE,
-          relays: followingResult.relayHints,
           tags: this.followedHashtags,
           anonymous,
           since: !silent && latest ? latest + 1 : daysAgoSeconds(INITIAL_LOOKBACK_DAYS),

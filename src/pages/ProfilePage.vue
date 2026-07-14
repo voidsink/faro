@@ -121,19 +121,22 @@ const following = ref(false)
 const profileLoading = ref(false)
 const profileError = ref('')
 const profileRelayPosts = ref([])
-const pubkey = computed(() => {
+const profileReference = computed(() => {
   const param = route.params.pubkey
-  if (!param) return identity.value?.pubkey || ''
-  if (param.startsWith('npub')) {
-    try {
-      const { data } = decode(param)
-      return data
-    } catch {
-      return ''
-    }
+  if (!param) return { pubkey: identity.value?.pubkey || '', relays: [] }
+
+  try {
+    const { type, data } = decode(param)
+    if (type === 'npub') return { pubkey: data, relays: [] }
+    if (type === 'nprofile') return { pubkey: data.pubkey || '', relays: data.relays || [] }
+  } catch {
+    // Plain hex pubkeys are not NIP-19 encoded.
   }
-  return param
+
+  return { pubkey: param, relays: [] }
 })
+const pubkey = computed(() => profileReference.value.pubkey)
+const profileRelays = computed(() => profileReference.value.relays)
 const profile = computed(() => {
   const cached = normalizeProfile(authorProfiles.value[pubkey.value])
   if (pubkey.value && pubkey.value === identity.value?.pubkey) {
@@ -203,6 +206,7 @@ async function fetchProfileContent(nextPubkey) {
       limit: 60,
       timeoutMs: 7500,
       anonymous: !session.identity?.pubkey,
+      temporaryRelays: profileRelays.value,
     })
 
     if (!visualResult.ok) {

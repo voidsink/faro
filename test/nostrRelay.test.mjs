@@ -30,6 +30,32 @@ test('anonymous relay requests ignore saved relay settings', () => {
   }
 })
 
+test('authenticated requests use saved relays without adding defaults or hints', () => {
+  const originalLocalStorage = globalThis.localStorage
+  globalThis.localStorage = {
+    getItem: () => JSON.stringify(['wss://chosen.example']),
+  }
+
+  try {
+    assert.deepEqual(relaysForOptions({ relays: ['wss://hint.example'] }), ['wss://chosen.example'])
+  } finally {
+    globalThis.localStorage = originalLocalStorage
+  }
+})
+
+test('temporary profile requests use only their supplied relay hints', () => {
+  assert.deepEqual(relaysForOptions({ temporaryRelays: ['wss://profile.example'] }), [
+    'wss://profile.example',
+  ])
+})
+
+test('temporary profile requests override anonymous relay defaults', () => {
+  assert.deepEqual(
+    relaysForOptions({ anonymous: true, temporaryRelays: ['wss://profile.example'] }),
+    ['wss://profile.example'],
+  )
+})
+
 test('empty profile batches do not create relay requests', async () => {
   assert.deepEqual(await fetchProfiles([]), {})
 })

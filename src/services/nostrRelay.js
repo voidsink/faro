@@ -22,14 +22,18 @@ function uniqueStrings(values) {
   return [...new Set((values || []).filter(Boolean))]
 }
 
-export function normalizeRelays(relays = DEFAULT_RELAYS) {
-  const normalized = uniqueStrings(relays)
+function validRelayUrls(relays) {
+  return uniqueStrings(relays)
     .map((relay) =>
       String(relay || '')
         .trim()
         .replace(/\/+$/, ''),
     )
     .filter((relay) => /^wss?:\/\//i.test(relay))
+}
+
+export function normalizeRelays(relays = DEFAULT_RELAYS) {
+  const normalized = validRelayUrls(relays)
   return normalized.length ? normalized : [...DEFAULT_RELAYS]
 }
 
@@ -106,10 +110,11 @@ export function saveRelays(relays) {
 }
 
 export function relaysForOptions(options = {}) {
-  if (options.anonymous) return normalizeRelays([...DEFAULT_RELAYS])
-  const configured = loadRelays()
-  const hinted = options.relays ? normalizeRelays(options.relays) : []
-  return normalizeRelays([...configured, ...hinted, ...DEFAULT_RELAYS])
+  const temporaryRelays = validRelayUrls(options.temporaryRelays)
+  if (temporaryRelays.length) return temporaryRelays
+
+  if (options.anonymous) return [...DEFAULT_RELAYS]
+  return loadRelays()
 }
 
 function isValidPubkey(pubkey) {
@@ -220,23 +225,30 @@ export function requestEvents({
   relays = DEFAULT_RELAYS,
   filters = [],
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  temporaryRelays = [],
 } = {}) {
   const relayUrls = normalizeRelays(relays)
   const safeFilters = Array.isArray(filters) ? filters.filter(Boolean) : []
+  const useTemporaryPool = validRelayUrls(temporaryRelays).length > 0
+  const requestPool = useTemporaryPool ? new SimplePool() : pool
 
   if (!relayUrls.length || !safeFilters.length) {
     return Promise.resolve([])
   }
 
   return Promise.all(
-    safeFilters.map((filter) => pool.querySync(relayUrls, filter, { maxWait: timeoutMs })),
-  ).then((results) => {
-    const eventsById = new Map()
-    for (const event of results.flat()) {
-      if (isValidNostrEvent(event)) eventsById.set(event.id, event)
-    }
-    return [...eventsById.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
-  })
+    safeFilters.map((filter) => requestPool.querySync(relayUrls, filter, { maxWait: timeoutMs })),
+  )
+    .then((results) => {
+      const eventsById = new Map()
+      for (const event of results.flat()) {
+        if (isValidNostrEvent(event)) eventsById.set(event.id, event)
+      }
+      return [...eventsById.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+    })
+    .finally(() => {
+      if (useTemporaryPool) requestPool.close(relayUrls)
+    })
 }
 
 export function subscribeVisualFeed(authors, options = {}) {
@@ -365,18 +377,11 @@ export async function fetchFollowing(pubkey, options = {}) {
           .filter((tag) => tag[0] === 'p' && isValidPubkey(tag[1]))
           .map((tag) => tag[1]),
       ),
-      relayHints: relayHintsFromFollowingEvent(event),
       event,
     }
   } catch (error) {
     return { ...fallback, error: error?.message || 'Following fetch failed' }
   }
-}
-
-export function relayHintsFromFollowingEvent(event) {
-  return normalizeRelays(
-    (event?.tags || []).filter((tag) => tag[0] === 'p' && tag[2]).map((tag) => tag[2]),
-  )
 }
 
 export function buildVisualFeedFilters(authors, options = {}) {
@@ -423,6 +428,7 @@ export async function fetchVisualFeed(authors, options = {}) {
       buildVisualFeedFilters(authorList, options).map((filter) =>
         requestEvents({
           relays: relaysForOptions(options),
+          temporaryRelays: options.temporaryRelays,
           timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
           filters: [filter],
         }),
