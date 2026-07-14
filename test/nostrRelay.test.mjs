@@ -9,6 +9,7 @@ import {
   extractImageUrls,
   extractVisualUrls,
   extractZapSummary,
+  fetchProfiles,
   loadFollowedHashtags,
   normalizeHashtags,
   normalizeRelays,
@@ -27,6 +28,10 @@ test('anonymous relay requests ignore saved relay settings', () => {
   } finally {
     globalThis.localStorage = originalLocalStorage
   }
+})
+
+test('empty profile batches do not create relay requests', async () => {
+  assert.deepEqual(await fetchProfiles([]), {})
 })
 
 test('normalizeRelays trims and filters wss URLs', () => {

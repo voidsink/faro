@@ -323,6 +323,26 @@ export async function fetchProfile(pubkey, options = {}) {
   }
 }
 
+export async function fetchProfiles(pubkeys, options = {}) {
+  const authors = uniqueStrings(pubkeys).filter(isValidPubkey)
+  if (!authors.length) return {}
+
+  try {
+    const events = await requestEvents({
+      relays: relaysForOptions(options),
+      timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
+      filters: [{ kinds: [0], authors, limit: authors.length }],
+    })
+    const profiles = {}
+    for (const event of events) {
+      if (!(event.pubkey in profiles)) profiles[event.pubkey] = JSON.parse(event.content || '{}')
+    }
+    return profiles
+  } catch {
+    return {}
+  }
+}
+
 export async function fetchFollowing(pubkey, options = {}) {
   const fallback = { ok: false, pubkey, pubkeys: [], event: null, error: null }
 

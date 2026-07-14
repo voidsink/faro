@@ -20,6 +20,7 @@ import {
   fetchFollowing,
   fetchInteractions,
   fetchProfile,
+  fetchProfiles,
   fetchVisualFeed,
   loadFollowedHashtags,
   publishReaction,
@@ -786,16 +787,12 @@ export const useSessionStore = defineStore('session', {
         .filter((pubkey) => pubkey && !this.authorProfiles[pubkey])
         .slice(0, 20)
       if (!missing.length) return
-      const entries = await Promise.all(
-        missing.map(async (pubkey) => {
-          const result = await fetchProfile(pubkey, { ...options, timeoutMs: 4500 })
-          const profile = result.ok ? normalizeProfile(result.profile) : {}
-          return [pubkey, profile]
-        }),
-      )
+      const profiles = await fetchProfiles(missing, { ...options, timeoutMs: 4500 })
       this.authorProfiles = {
         ...this.authorProfiles,
-        ...Object.fromEntries(entries),
+        ...Object.fromEntries(
+          missing.map((pubkey) => [pubkey, normalizeProfile(profiles[pubkey] || {})]),
+        ),
       }
     },
 
