@@ -40,22 +40,28 @@
           type="button"
           class="photo-tile"
           :aria-label="post.caption || `#${tag} post`"
+          @click="$router.push(`/post/${post.id}`)"
         >
           <q-img
-            v-if="post.image"
+            v-if="post.image && !post.contentWarning"
             :src="post.image"
             :alt="post.caption || `#${tag} photo`"
             fit="cover"
             ratio="1"
           />
           <video
-            v-else-if="post.video"
+            v-else-if="post.video && !post.contentWarning"
             :src="post.video"
             muted
             playsinline
             preload="metadata"
             class="tile-video"
           />
+          <div v-else class="column flex-center full-height q-pa-sm">
+            <q-icon name="visibility_off" size="28px" /><span class="text-caption"
+              >Sensitive content</span
+            >
+          </div>
           <div v-if="post.images?.length > 1" class="multi-badge row items-center q-gutter-xs">
             <q-icon name="collections" size="16px" />
             <span>{{ post.images.length }}</span>
@@ -68,7 +74,7 @@
       </p>
 
       <q-card
-        v-else
+        v-if="!posts.length"
         flat
         bordered
         class="faro-surface column flex-center text-blue-grey-6 q-gutter-sm q-pa-xl q-mt-md"
@@ -99,8 +105,9 @@ const { identity, followedHashtags } = storeToRefs(session)
 const loading = ref(false)
 const error = ref('')
 const posts = ref([])
+let tagRequest = 0
 
-const tag = computed(() => normalizeHashtags([decodeURIComponent(route.params.tag || '')])[0] || '')
+const tag = computed(() => normalizeHashtags([route.params.tag || ''])[0] || '')
 const isFollowing = computed(() => followedHashtags.value.includes(tag.value))
 const followLabel = computed(() => {
   if (!identity.value) return 'Sign in to follow'
@@ -117,7 +124,12 @@ watch(tag, async () => {
 })
 
 async function fetchTagPosts() {
-  if (!tag.value) return
+  const current = ++tagRequest
+  posts.value = []
+  if (!tag.value) {
+    loading.value = false
+    return
+  }
 
   loading.value = true
   error.value = ''
@@ -129,6 +141,8 @@ async function fetchTagPosts() {
       anonymous: !identity.value?.pubkey,
     })
 
+    if (current !== tagRequest) return
+
     if (!visualResult.ok) {
       posts.value = []
       error.value = visualResult.error || `Could not fetch #${tag.value} posts from relays.`
@@ -137,12 +151,14 @@ async function fetchTagPosts() {
 
     const pubkeys = [...new Set(visualResult.events.map((event) => event.pubkey).filter(Boolean))]
     await session.hydrateAuthorProfiles(pubkeys)
+    if (current !== tagRequest) return
     posts.value = session.postsFromVisualEvents(visualResult.events)
   } catch (fetchError) {
+    if (current !== tagRequest) return
     posts.value = []
     error.value = fetchError?.message || `Could not fetch #${tag.value} posts from relays.`
   } finally {
-    loading.value = false
+    if (current === tagRequest) loading.value = false
   }
 }
 
@@ -152,6 +168,7 @@ function toggleFollow() {
     ? followedHashtags.value.filter((item) => item !== tag.value)
     : [...followedHashtags.value, tag.value]
   session.updateFollowedHashtags(nextTags)
+  session.refreshFromNostr({ silent: true })
 }
 </script>
 

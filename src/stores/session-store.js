@@ -18,6 +18,7 @@ import {
 import { clearLocalPosts, loadLocalPosts, saveLocalPostsWithPruning } from 'src/services/localMedia'
 import {
   fetchFollowing,
+  buildFollowEvent,
   fetchInteractions,
   fetchProfile,
   fetchProfiles,
@@ -27,6 +28,7 @@ import {
   publishReply,
   saveFollowedHashtags,
   subscribeVisualFeed,
+  signAndPublish,
 } from 'src/services/nostrRelay'
 
 const identityKey = 'faro-identity'
@@ -89,6 +91,12 @@ function daysAgoSeconds(days) {
 export const useSessionStore = defineStore('session', {
   state: () => ({
     initialized: false,
+    sessionVersion: 0,
+    anonymousFeedAllowed: false,
+    feedError: '',
+    publishingFollow: false,
+    keyBackupRequired: false,
+    savingProfile: false,
     hasNip07: false,
     identity: null,
     relayProfile: {},
@@ -153,7 +161,10 @@ export const useSessionStore = defineStore('session', {
     },
 
     combinedFeed(state) {
-      return this.dedupePostsById([...state.localPosts, ...state.relayPosts])
+      return this.dedupePostsById([
+        ...state.localPosts.filter((post) => post.author?.pubkey === state.identity?.pubkey),
+        ...state.relayPosts,
+      ])
     },
 
     userPosts(state) {
@@ -197,7 +208,7 @@ export const useSessionStore = defineStore('session', {
       this.initialized = true
 
       this.reconnectRemoteSigner({ silent: true })
-      this.refreshFromNostr({ silent: true })
+      if (this.identity) this.refreshFromNostr({ silent: true })
     },
 
     loadIdentity() {
@@ -217,6 +228,9 @@ export const useSessionStore = defineStore('session', {
     },
 
     saveIdentity(nextIdentity) {
+      this.sessionVersion++
+      this.refreshing = false
+      this.feedError = ''
       const safeIdentity = safeIdentityForStorage(nextIdentity)
       if (safeIdentity?.sessionOnly) {
         localStorage.removeItem(identityKey)
@@ -241,6 +255,11 @@ export const useSessionStore = defineStore('session', {
     },
 
     clearAuthState(message = 'Logged out. Local posts were kept.') {
+      this.sessionVersion++
+      this.refreshing = false
+      this.feedError = ''
+      this.anonymousFeedAllowed = false
+      this.keyBackupRequired = false
       this.closeRemoteSigner()
       localStorage.removeItem(identityKey)
       localStorage.removeItem(legacyIdentityKey)
@@ -308,7 +327,6 @@ export const useSessionStore = defineStore('session', {
       } catch (error) {
         this.remoteSigner = null
         this.message = error?.message || 'Pomegranate login failed.'
-        throw error
       } finally {
         this.bunkerLoading = false
       }
@@ -355,7 +373,9 @@ export const useSessionStore = defineStore('session', {
       const keypair = createKeypair()
       this.secretKey = keypair.secretKey
       this.saveIdentity({ pubkey: keypair.pubkey, source: 'local-key', sessionOnly: true })
-      this.message = `New key created for this session. Back it up now: ${keypair.nsec}`
+      this.keyBackupRequired = true
+      this.message = 'New account created for this session. Save your private key to keep it.'
+      this.refreshFromNostr({ silent: true })
     },
 
     async importNsec(input) {
@@ -365,6 +385,7 @@ export const useSessionStore = defineStore('session', {
         this.secretKey = keypair.secretKey
         this.saveIdentity({ pubkey: keypair.pubkey, source: 'nsec', sessionOnly: true })
         this.message = 'Private key imported for this session only.'
+        this.refreshFromNostr({ silent: true })
       } catch (error) {
         this.message = error?.message || 'Could not import private key.'
       }
@@ -500,6 +521,88 @@ export const useSessionStore = defineStore('session', {
       this.refreshFromNostr({ silent: true })
     },
 
+    async setFollowing(pubkey, follow) {
+      if (this.publishingFollow || pubkey === this.identity?.pubkey) return false
+      const signer = await this.activeSigner('following people')
+      if (!signer) return false
+      const version = this.sessionVersion
+      this.publishingFollow = true
+      try {
+        // Fetch the full latest list before writing: preserve other clients' tags and content.
+        const current = await fetchFollowing(this.identity.pubkey)
+        if (!current.ok)
+          throw new Error(current.error || 'Could not load your contact list. Nothing was changed.')
+        if (version !== this.sessionVersion) return false
+        const event = buildFollowEvent(current.event, pubkey, follow)
+        const result = await signAndPublish(event, { signer, timeoutMs: 7000 })
+        if (version !== this.sessionVersion) return false
+        if (!result.ok) throw new Error(result.error || 'Could not publish your contact list.')
+        this.sessionVersion++
+        this.refreshing = false
+        this.loadingMoreRelayPosts = false
+        this.following = event.tags.filter((tag) => tag[0] === 'p').map((tag) => tag[1])
+        this.message = follow ? 'Following on Nostr.' : 'Unfollowed on Nostr.'
+        this.closeLiveFeedSubscription()
+        this.relayPosts = []
+        this.pendingRelayEvents = []
+        this.relayCursor = null
+        this.hasMoreRelayPosts = false
+        this.saveRelayCache()
+        await this.refreshFromNostr({ silent: true })
+        return true
+      } catch (error) {
+        this.message = error.message || 'Could not update following.'
+        return false
+      } finally {
+        this.publishingFollow = false
+      }
+    },
+
+    async updateProfile(fields) {
+      if (this.savingProfile) return false
+      const signer = await this.activeSigner('updating your profile')
+      if (!signer) return false
+      const version = this.sessionVersion
+      this.savingProfile = true
+      try {
+        const current = await fetchProfile(this.identity.pubkey)
+        if (!current.ok)
+          throw new Error(
+            current.error || 'Could not load your current profile. Nothing was changed.',
+          )
+        if (version !== this.sessionVersion) return false
+        const profile = { ...current.profile, ...fields }
+        for (const field of ['picture', 'banner']) {
+          if (profile[field] && !/^https?:\/\//i.test(profile[field]))
+            throw new Error('Use an http or https image URL.')
+        }
+        const result = await signAndPublish(
+          {
+            kind: 0,
+            created_at: Math.max(
+              Math.floor(Date.now() / 1000),
+              (current.event?.created_at || 0) + 1,
+            ),
+            content: JSON.stringify(profile),
+            tags: current.event?.tags || [],
+          },
+          { signer, timeoutMs: 7000 },
+        )
+        if (version !== this.sessionVersion) return false
+        if (!result.ok) throw new Error(result.error || 'Could not publish your profile.')
+        this.relayProfile = profile
+        this.authorProfiles[this.identity.pubkey] = profile
+        this.saveRelayCache()
+        this.message = 'Profile published to Nostr.'
+        return true
+      } catch (error) {
+        this.message = error.message || 'Could not update your profile.'
+        return false
+      } finally {
+        this.savingProfile = false
+      }
+    },
+
     loadRelayCache() {
       const cache = readJson(relayCacheKey, null)
       if (!cache) return
@@ -525,21 +628,25 @@ export const useSessionStore = defineStore('session', {
       // Never persist relay cache without an authenticated pubkey; logged-out
       // global feed data must not become reusable account cache.
       if (!this.identity?.pubkey) return
-      localStorage.setItem(
-        relayCacheKey,
-        JSON.stringify({
-          relayProfile: normalizeProfile(this.relayProfile),
-          pubkey: this.identity.pubkey,
-          following: this.following,
-          followers: this.followers,
-          relayPosts: this.relayPosts.slice(0, RELAY_CACHE_LIMIT),
-          interactionsByEventId: this.interactionsByEventId,
-          relayCursor: this.relayCursor,
-          hasMoreRelayPosts: this.hasMoreRelayPosts,
-          authorProfiles: this.authorProfiles,
-          cachedAt: new Date().toISOString(),
-        }),
-      )
+      try {
+        localStorage.setItem(
+          relayCacheKey,
+          JSON.stringify({
+            relayProfile: normalizeProfile(this.relayProfile),
+            pubkey: this.identity.pubkey,
+            following: this.following,
+            followers: this.followers,
+            relayPosts: this.relayPosts.slice(0, RELAY_CACHE_LIMIT),
+            interactionsByEventId: this.interactionsByEventId,
+            relayCursor: this.relayCursor,
+            hasMoreRelayPosts: this.hasMoreRelayPosts,
+            authorProfiles: this.authorProfiles,
+            cachedAt: new Date().toISOString(),
+          }),
+        )
+      } catch {
+        // Relay data is a disposable cache; storage limits must not break publishing.
+      }
     },
 
     addLocalPost(post) {
@@ -584,6 +691,9 @@ export const useSessionStore = defineStore('session', {
     },
 
     updateFollowedHashtags(tags) {
+      this.sessionVersion++
+      this.refreshing = false
+      this.loadingMoreRelayPosts = false
       this.followedHashtags = saveFollowedHashtags(tags, this.identity?.pubkey)
       this.relayPosts = []
       this.pendingRelayEvents = []
@@ -598,7 +708,10 @@ export const useSessionStore = defineStore('session', {
     },
 
     async refreshFromNostr({ silent = false } = {}) {
+      if (this.refreshing || (!this.identity && !this.anonymousFeedAllowed)) return
+      const version = this.sessionVersion
       this.refreshing = true
+      this.feedError = ''
       if (!silent) this.message = ''
 
       try {
@@ -612,6 +725,7 @@ export const useSessionStore = defineStore('session', {
               { ok: false, pubkeys: [] },
             ]
 
+        if (version !== this.sessionVersion) return
         let refreshed = false
 
         if (profileResult.ok) {
@@ -634,18 +748,28 @@ export const useSessionStore = defineStore('session', {
           since: !silent && latest ? latest + 1 : daysAgoSeconds(INITIAL_LOOKBACK_DAYS),
         })
 
+        if (version !== this.sessionVersion) return
+
         if (visualResult.ok) {
           const events = visualResult.events
           const pubkeys = [...new Set(events.map((event) => event.pubkey).filter(Boolean))]
           await this.hydrateAuthorProfiles(pubkeys, { anonymous })
+          if (version !== this.sessionVersion) return
 
           const nextPosts = this.postsFromVisualEvents(events)
           this.relayPosts = silent ? nextPosts : this.mergeRelayPosts(nextPosts)
           await this.refreshInteractionsForPosts(this.relayPosts)
-          this.relayCursor = this.cursorFromEvents(events) || this.cursorFromPosts(this.relayPosts)
-          this.hasMoreRelayPosts = true
+          if (version !== this.sessionVersion) return
+          if (silent || !latest) {
+            this.relayCursor = visualResult.cursor
+            this.hasMoreRelayPosts = visualResult.hasMore
+          }
           refreshed = true
+        } else {
+          this.feedError = visualResult.error || 'Could not load your feed. Please try again.'
         }
+
+        if (version !== this.sessionVersion) return
 
         if (refreshed) {
           this.saveRelayCache()
@@ -659,9 +783,11 @@ export const useSessionStore = defineStore('session', {
               : 'Relay data was unavailable. Showing cached data if available.'
         }
       } catch {
+        if (version !== this.sessionVersion) return
+        this.feedError = 'Could not load your feed. Check your connection and try again.'
         if (!silent) this.message = 'Relay fetch failed or timed out. Local posting is available.'
       } finally {
-        this.refreshing = false
+        if (version === this.sessionVersion) this.refreshing = false
       }
     },
 
@@ -675,6 +801,7 @@ export const useSessionStore = defineStore('session', {
       }
 
       this.loadingMoreRelayPosts = true
+      const version = this.sessionVersion
       try {
         const authors = this.feedAuthors()
         const anonymous = !this.identity?.pubkey
@@ -686,11 +813,16 @@ export const useSessionStore = defineStore('session', {
           timeoutMs: 6500,
         })
 
-        if (!visualResult.ok) return
+        if (version !== this.sessionVersion) return
+        if (!visualResult.ok) {
+          this.feedError = visualResult.error || 'Could not load more posts.'
+          return
+        }
 
         const events = visualResult.events
         const pubkeys = [...new Set(events.map((event) => event.pubkey).filter(Boolean))]
         await this.hydrateAuthorProfiles(pubkeys, { anonymous })
+        if (version !== this.sessionVersion) return
 
         const existing = new Set(this.relayPosts.map((post) => post.id))
         const nextPosts = this.postsFromVisualEvents(events).filter(
@@ -698,11 +830,13 @@ export const useSessionStore = defineStore('session', {
         )
         this.relayPosts = this.mergeRelayPosts(nextPosts)
         await this.refreshInteractionsForPosts(nextPosts)
-        this.relayCursor = this.cursorFromEvents(events) || this.cursorFromPosts(this.relayPosts)
-        this.hasMoreRelayPosts = events.length > 0 && nextPosts.length > 0
+        if (version !== this.sessionVersion) return
+        this.relayCursor = visualResult.cursor
+        this.hasMoreRelayPosts = visualResult.hasMore && visualResult.cursor < until
+        this.feedError = ''
         this.saveRelayCache()
       } finally {
-        this.loadingMoreRelayPosts = false
+        if (version === this.sessionVersion) this.loadingMoreRelayPosts = false
       }
     },
 
@@ -770,11 +904,13 @@ export const useSessionStore = defineStore('session', {
     },
 
     async mergePendingRelayPosts() {
+      const version = this.sessionVersion
       const events = this.pendingRelayEvents
       if (!events.length) return
       this.pendingRelayEvents = []
       const pubkeys = [...new Set(events.map((event) => event.pubkey).filter(Boolean))]
       await this.hydrateAuthorProfiles(pubkeys)
+      if (version !== this.sessionVersion) return
       const nextPosts = this.postsFromVisualEvents(events)
       this.relayPosts = this.mergeRelayPosts(nextPosts)
       await this.refreshInteractionsForPosts(nextPosts)
@@ -782,11 +918,13 @@ export const useSessionStore = defineStore('session', {
     },
 
     async hydrateAuthorProfiles(pubkeys, options = {}) {
+      const version = this.sessionVersion
       const missing = pubkeys
         .filter((pubkey) => pubkey && !this.authorProfiles[pubkey])
         .slice(0, 20)
       if (!missing.length) return
       const profiles = await fetchProfiles(missing, { ...options, timeoutMs: 4500 })
+      if (version !== this.sessionVersion) return
       this.authorProfiles = {
         ...this.authorProfiles,
         ...Object.fromEntries(
@@ -860,6 +998,9 @@ export const useSessionStore = defineStore('session', {
             ratio: '1:1',
             createdAt: new Date((event.created_at || Date.now() / 1000) * 1000).toISOString(),
             source: `relay kind ${event.kind ?? 1}`,
+            contentWarning:
+              event.tags?.find((tag) => tag[0] === 'content-warning')?.[1] ||
+              (event.tags?.some((tag) => tag[0] === 'content-warning') ? 'Sensitive content' : ''),
             nostr: {
               id: event.id,
               pubkey: event.pubkey,
@@ -872,6 +1013,7 @@ export const useSessionStore = defineStore('session', {
     },
 
     async refreshInteractionsForPosts(posts) {
+      const version = this.sessionVersion
       const eventIds = [...new Set((posts || []).map((post) => post.nostr?.id).filter(Boolean))]
       if (!eventIds.length) return
 
@@ -880,7 +1022,7 @@ export const useSessionStore = defineStore('session', {
         timeoutMs: 6500,
       })
 
-      if (!result.ok) return
+      if (!result.ok || version !== this.sessionVersion) return
 
       const replyPubkeys = Object.values(result.interactions)
         .flatMap((interaction) => interaction.replies || [])
@@ -888,6 +1030,7 @@ export const useSessionStore = defineStore('session', {
         .filter(Boolean)
 
       await this.hydrateAuthorProfiles([...new Set(replyPubkeys)])
+      if (version !== this.sessionVersion) return
 
       this.interactionsByEventId = {
         ...this.interactionsByEventId,
@@ -927,7 +1070,12 @@ export const useSessionStore = defineStore('session', {
       if (!signer) {
         return
       }
-      if (this.interactionsByEventId[rootEvent.id]?.likedByMe) return
+      if (
+        this.interactionsByEventId[rootEvent.id]?.likedByMe ||
+        this.publishingInteractions[rootEvent.id]
+      )
+        return
+      const version = this.sessionVersion
 
       const current = this.interactionsByEventId[rootEvent.id] || {
         count: 0,
@@ -944,11 +1092,11 @@ export const useSessionStore = defineStore('session', {
       this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: true }
 
       const result = await publishReaction(rootEvent, { timeoutMs: 7000, signer })
+      if (version !== this.sessionVersion) return
       this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: false }
 
       if (result.ok) {
         this.message = 'Like published to Nostr.'
-        await this.refreshInteractionsForPosts([post])
         this.saveRelayCache()
         return
       }
@@ -964,14 +1112,17 @@ export const useSessionStore = defineStore('session', {
         this.message = 'Only relay posts can be commented on Nostr.'
         return false
       }
-      if (!text) return false
+      if (!text || this.publishingInteractions[rootEvent.id]) return false
       const signer = await this.activeSigner('publishing Nostr comments')
       if (!signer) {
         return false
       }
+      if (this.publishingInteractions[rootEvent.id]) return false
+      const version = this.sessionVersion
 
       this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: true }
       const result = await publishReply(rootEvent, text, { timeoutMs: 7000, signer })
+      if (version !== this.sessionVersion) return false
       this.publishingInteractions = { ...this.publishingInteractions, [rootEvent.id]: false }
 
       if (!result.ok) {
@@ -1001,7 +1152,6 @@ export const useSessionStore = defineStore('session', {
         [rootEvent.id]: { ...current, replies: [...(current.replies || []), reply] },
       }
       this.message = 'Comment published to Nostr.'
-      await this.refreshInteractionsForPosts([post])
       this.saveRelayCache()
       return true
     },

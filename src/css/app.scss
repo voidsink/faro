@@ -15,8 +15,7 @@
   --faro-accent-soft: #f04b79;
   --faro-surface-border: rgba(36, 27, 24, 0.1);
   --faro-surface-bg: #fffdfa;
-  --faro-surface-shadow:
-    0 1px 2px rgba(36, 27, 24, 0.04), 0 14px 34px -22px rgba(36, 27, 24, 0.38);
+  --faro-surface-shadow: 0 1px 2px rgba(36, 27, 24, 0.04), 0 14px 34px -22px rgba(36, 27, 24, 0.38);
   // The shell paints the background; pages must not cover it with a second colour.
   --faro-page-bg: transparent;
   --faro-tabbar-space: 68px;
@@ -25,6 +24,31 @@
 body {
   font-family: var(--faro-font-body);
   color: var(--faro-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--q-primary);
+  outline-offset: 3px;
+}
+
+.q-btn,
+.q-tab {
+  touch-action: manipulation;
+}
+
+.source-tile .q-btn__content {
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 h1,
@@ -65,7 +89,7 @@ h6,
 // Quasar's blue-grey utilities are cool-tinted and fight the warm shell. The app
 // uses exactly two of them as semantics — 5/6 = muted caption, 10 = icon ink — so
 // remap those here instead of editing every component.
-// ponytail: global remap, replace with real tokens if a third shade ever means
+// shortcut: global remap, replace with real tokens if a third shade ever means
 // something different.
 .text-blue-grey-5,
 .text-blue-grey-6 {

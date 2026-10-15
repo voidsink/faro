@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {
   DEFAULT_RELAYS,
   buildPictureEvent,
+  buildFollowEvent,
+  fetchVisualPost,
   buildVisualFeedFilters,
   buildReactionFilter,
   buildReplyFilter,
@@ -306,4 +308,76 @@ test('buildPictureEvent emits a NIP-68 kind 20 with imeta and no url in content'
     event.tags.find((tag) => tag[0] === 't'),
     ['t', 'peniche'],
   )
+  assert.deepEqual(
+    event.tags.find((tag) => tag[0] === 'title'),
+    ['title', 'Sunset over the harbour #peniche'],
+  )
+  assert.deepEqual(
+    event.tags.find((tag) => tag[0] === 'm'),
+    ['m', 'image/jpeg'],
+  )
+  assert.deepEqual(
+    event.tags.find((tag) => tag[0] === 'x'),
+    ['x', sha256],
+  )
+})
+
+test('NIP-68 reads extensionless media using imeta MIME types', () => {
+  assert.deepEqual(
+    extractVisualUrls({
+      kind: 20,
+      tags: [
+        ['imeta', 'url https://media.example/abc', 'm image/avif'],
+        ['imeta', 'url https://media.example/def', 'm image/apng'],
+      ],
+    }),
+    { images: ['https://media.example/abc', 'https://media.example/def'], videos: [] },
+  )
+  assert.deepEqual(
+    extractVisualUrls({
+      kind: 22,
+      tags: [['imeta', 'url https://media.example/video', 'm video/mp4']],
+    }),
+    { images: [], videos: ['https://media.example/video'] },
+  )
+  assert.deepEqual(
+    extractImageUrls({ kind: 20, tags: [['imeta', 'url javascript:alert(1)', 'm image/jpeg']] }),
+    [],
+  )
+})
+
+test('picture publishing rejects missing images and video MIME types', () => {
+  assert.throws(() => buildPictureEvent({}), /public image URL/)
+  assert.throws(
+    () =>
+      buildPictureEvent({
+        mediaUrl: 'https://media.example/video',
+        media: { mimeType: 'video/mp4' },
+      }),
+    /supported image/,
+  )
+})
+
+test('follow updates preserve existing tags, pet names and content', () => {
+  const old = {
+    created_at: Math.floor(Date.now() / 1000),
+    content: '{"wss://relay.example":{"read":true}}',
+    tags: [
+      ['p', 'a'.repeat(64), 'wss://relay.example', 'Alice'],
+      ['t', 'nostr'],
+    ],
+  }
+  const follow = buildFollowEvent(old, 'b'.repeat(64), true)
+  assert.equal(follow.kind, 3)
+  assert.equal(follow.created_at, old.created_at + 1)
+  assert.equal(follow.content, old.content)
+  assert.deepEqual(follow.tags, [...old.tags, ['p', 'b'.repeat(64)]])
+  assert.deepEqual(buildFollowEvent(follow, 'b'.repeat(64), true).tags, follow.tags)
+  assert.deepEqual(buildFollowEvent(follow, 'b'.repeat(64), false).tags, old.tags)
+  assert.equal(old.tags.length, 2, 'original event is not mutated')
+  assert.throws(() => buildFollowEvent(old, 'bad-key', true), /Invalid public key/)
+})
+
+test('invalid post links fail before opening relay connections', async () => {
+  assert.deepEqual(await fetchVisualPost('bad-id'), { ok: false, error: 'Invalid post ID.' })
 })

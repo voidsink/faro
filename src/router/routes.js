@@ -5,6 +5,7 @@ const routes = [
     children: [
       { path: '', component: () => import('pages/IndexPage.vue') },
       { path: 'new', component: () => import('pages/NewPostPage.vue') },
+      { path: 'post/:id', component: () => import('pages/PostPage.vue') },
       { path: 'profile', component: () => import('pages/ProfilePage.vue') },
       { path: 'profile/:pubkey', component: () => import('pages/ProfilePage.vue') },
       { path: 'tag/:tag', component: () => import('pages/HashtagPage.vue') },

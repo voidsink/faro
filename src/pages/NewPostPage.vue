@@ -1,6 +1,6 @@
 <template>
   <q-page class="faro-page">
-    <div class="new-post-shell window-height q-mx-auto q-pa-sm">
+    <div class="faro-page-inner new-post-shell">
       <q-card flat bordered class="faro-surface new-post-card overflow-hidden">
         <q-toolbar class="composer-toolbar q-px-md">
           <q-btn flat round icon="close" aria-label="Close composer" to="/" />
@@ -38,29 +38,31 @@
           <q-step :name="1" title="Photo" icon="add_photo_alternate" :done="Boolean(imagePreview)">
             <div class="row q-col-gutter-md">
               <div class="col-12 col-sm-6">
-                <q-card
-                  flat
-                  bordered
-                  class="source-tile column flex-center text-center q-gutter-sm bg-grey-1"
+                <q-btn
+                  outline
+                  no-caps
+                  color="dark"
+                  class="source-tile full-width bg-grey-1"
                   @click="openGallery"
                 >
                   <q-icon name="photo_library" size="34px" />
                   <strong>Choose photo</strong>
                   <span class="text-blue-grey-6">Open the file picker.</span>
-                </q-card>
+                </q-btn>
               </div>
 
               <div class="col-12 col-sm-6">
-                <q-card
-                  flat
-                  bordered
-                  class="source-tile column flex-center text-center q-gutter-sm bg-grey-1"
+                <q-btn
+                  outline
+                  no-caps
+                  color="dark"
+                  class="source-tile full-width bg-grey-1"
                   @click="openCamera"
                 >
                   <q-icon name="photo_camera" size="34px" />
                   <strong>Use camera</strong>
                   <span class="text-blue-grey-6">Best on phones.</span>
-                </q-card>
+                </q-btn>
               </div>
             </div>
 
@@ -86,7 +88,7 @@
                 color="dark"
                 no-caps
                 label="Continue"
-                :disable="!imagePreview"
+                :disable="!imagePreview || processing"
                 @click="step = 2"
               />
             </q-stepper-navigation>
@@ -125,6 +127,7 @@
                 color="grey-2"
                 text-color="dark"
                 :options="ratioOptions"
+                :disable="processing || publishing"
                 @update:model-value="reprocessSelectedImage"
               />
             </div>
@@ -136,7 +139,7 @@
                 color="dark"
                 no-caps
                 label="Continue"
-                :disable="!imagePreview"
+                :disable="!imagePreview || processing"
                 @click="step = 3"
               />
             </q-stepper-navigation>
@@ -152,6 +155,7 @@
               counter
               maxlength="600"
               placeholder="Write a caption..."
+              label="Caption"
             />
 
             <q-stepper-navigation class="stepper-nav row justify-end q-gutter-sm q-pb-none">
@@ -167,9 +171,33 @@
               dense
               class="faro-warning q-mb-md"
             >
-              Remote signer connection is not active. You can still press Publish to see the exact
-              recovery message, or sign in again with your bunker link.
+              Your signer is disconnected. Sign in again to publish; your draft will stay here.
             </q-banner>
+
+            <q-banner v-if="!identity" rounded class="faro-warning q-mb-md">
+              Sign in to publish or save this photo. Your draft stays here while you connect.
+              <template #action
+                ><q-btn
+                  unelevated
+                  no-caps
+                  color="dark"
+                  label="Sign in"
+                  @click="loginDialogOpen = true"
+              /></template>
+            </q-banner>
+            <q-banner v-else-if="!hasActiveNostrSigner" rounded class="faro-warning q-mb-md">
+              <q-btn
+                flat
+                no-caps
+                color="dark"
+                label="Reconnect signer"
+                @click="loginDialogOpen = true"
+              />
+            </q-banner>
+            <p class="text-caption text-blue-grey-6">
+              Publishing shares this photo publicly with Nostr and your media server. Save locally
+              keeps a draft in this browser only.
+            </p>
 
             <q-card flat bordered class="review-card overflow-hidden q-mx-auto">
               <q-card-section class="review-grid q-pa-none">
@@ -226,9 +254,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import LoginDialog from 'components/auth/LoginDialog.vue'
 import { ASPECT_RATIOS, ORIGINAL_ASPECT_RATIO_KEY, processImageFile } from 'src/services/localMedia'
 import { loadBlossomServers, uploadBlobToBlossom } from 'src/services/blossom'
@@ -247,6 +275,9 @@ const processedMedia = ref(null)
 const selectedRatio = ref(ORIGINAL_ASPECT_RATIO_KEY)
 const selectedFile = ref(null)
 const publishing = ref(false)
+const processing = ref(false)
+const draftSaved = ref(false)
+let imageRequest = 0
 const publishMode = ref('')
 const loginDialogOpen = ref(false)
 const galleryInput = ref(null)
@@ -273,12 +304,13 @@ const previewFrameStyle = computed(() => {
   }
 })
 const canSaveLocally = computed(() =>
-  Boolean(identity.value && imagePreview.value && !publishing.value),
+  Boolean(identity.value && imagePreview.value && !publishing.value && !processing.value),
 )
 const canAttemptNostrPublish = computed(() =>
   Boolean(
     processedMedia.value?.blob &&
     !publishing.value &&
+    !processing.value &&
     (hasActiveNostrSigner.value || identity.value?.clientSecretKeyHex),
   ),
 )
@@ -286,6 +318,27 @@ const hasActiveNostrSigner = computed(() => Boolean(canSignNostrEvents.value))
 
 onMounted(() => {
   session.init()
+  window.addEventListener('beforeunload', warnBeforeUnload)
+})
+onUnmounted(() => window.removeEventListener('beforeunload', warnBeforeUnload))
+
+const hasUnsavedDraft = computed(
+  () => !draftSaved.value && Boolean(selectedFile.value || caption.value.trim()),
+)
+function warnBeforeUnload(event) {
+  if (!hasUnsavedDraft.value && !publishing.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+onBeforeRouteLeave(() => {
+  if (publishing.value) {
+    notifyError('Please wait for your post to finish saving or publishing.')
+    return false
+  }
+  return (
+    !hasUnsavedDraft.value ||
+    window.confirm('Discard this unsaved post? Your photo and caption will be lost.')
+  )
 })
 
 watch(identity, (nextIdentity) => {
@@ -339,14 +392,20 @@ async function reprocessSelectedImage() {
 
 async function processSelectedImage() {
   if (!selectedFile.value) return
+  const current = ++imageRequest
+  processing.value = true
   try {
     const processed = await processImageFile(selectedFile.value, selectedRatio.value)
+    if (current !== imageRequest) return
     processedMedia.value = processed
     imagePreview.value = processed.dataUrl
   } catch {
+    if (current !== imageRequest) return
     processedMedia.value = null
     imagePreview.value = ''
     notifyError('Could not process that image.')
+  } finally {
+    if (current === imageRequest) processing.value = false
   }
 }
 
@@ -383,9 +442,11 @@ async function saveLocalPost() {
       media: serializableMedia(processedMedia.value),
       ratio: selectedRatio.value,
       createdAt: new Date().toISOString(),
-      source: 'local kind 1 draft',
+      source: 'local draft',
     }
     session.addLocalPost(nextPost)
+    draftSaved.value = true
+    publishing.value = false
     await router.push('/')
   } catch {
     notifyError('Could not save locally. Try a smaller image.')
@@ -459,6 +520,8 @@ async function publishNostrPost() {
       caption: caption.value.trim(),
     })
     notifySuccess(relayPublishMessage(publishResult.results))
+    draftSaved.value = true
+    publishing.value = false
     await router.push('/')
   } catch (error) {
     notifyError(error?.message || 'Nostr publish failed.')

@@ -14,7 +14,7 @@ const DEFAULT_TIMEOUT_MS = 8000
 const MAX_VISUAL_EVENTS = 80
 // Feed reads stay wide: 1 = short text, 20 = NIP-68 picture, 21/22 = NIP-71 video.
 const VISUAL_KINDS = [1, 20, 21, 22]
-const IMAGE_EXTENSIONS = '(?:jpe?g|png|webp|gif)'
+const IMAGE_EXTENSIONS = '(?:jpe?g|png|webp|gif|avif|apng)'
 const VIDEO_EXTENSIONS = '(?:mp4|webm|ogv|mov|m4v|mkv)'
 const URL_PATTERN = /https?:\/\/[^\s<>'"`]+/gi
 const HEX64_PATTERN = /^[0-9a-f]{64}$/i
@@ -208,6 +208,16 @@ export function extractVisualUrls(event) {
     const value = readTagValue(tag)
     if (!value) continue
 
+    const mime =
+      tag[0] === 'imeta'
+        ? tag.find((part) => typeof part === 'string' && part.startsWith('m '))?.slice(2)
+        : event.tags.find((part) => part[0] === 'm')?.[1]
+    if (/^https?:\/\//i.test(value)) {
+      if (/^image\//i.test(mime || '')) images.push(value)
+      else if (/^video\//i.test(mime || '')) videos.push(value)
+      else if (event.kind === 20 && tag[0] === 'imeta') images.push(value)
+    }
+
     for (const match of value.matchAll(URL_PATTERN)) {
       const url = cleanUrl(match[0])
       if (isImageUrl(url)) images.push(url)
@@ -239,7 +249,44 @@ export function requestEvents({
   }
 
   return Promise.all(
-    safeFilters.map((filter) => requestPool.querySync(relayUrls, filter, { maxWait: timeoutMs })),
+    safeFilters.map(async (filter) => {
+      const results = await Promise.allSettled(
+        relayUrls.map(async (url) => {
+          const relay = await requestPool.ensureRelay(url, { connectionTimeout: timeoutMs })
+          return new Promise((resolve, reject) => {
+            const events = []
+            let settled = false
+            let subscription
+            // Use our own deadline: the library also calls oneose on its timeout.
+            const timer = setTimeout(() => finish(new Error('Relay request timed out.')), timeoutMs)
+            try {
+              subscription = relay.subscribe([filter], {
+                eoseTimeout: timeoutMs + 1000,
+                onevent: (event) => events.push(event),
+                oneose: () => finish(),
+                onclose: (reason) => finish(new Error(reason || 'Relay closed the request.')),
+              })
+            } catch (error) {
+              finish(error)
+            }
+            function finish(error) {
+              if (settled) return
+              settled = true
+              clearTimeout(timer)
+              subscription?.close()
+              if (error) reject(error)
+              else resolve(events)
+            }
+          })
+        }),
+      )
+      if (!results.some((result) => result.status === 'fulfilled')) {
+        throw new Error(
+          'Could not reach your Nostr relays. Check your connection or relay settings.',
+        )
+      }
+      return results.flatMap((result) => (result.status === 'fulfilled' ? result.value : []))
+    }),
   )
     .then((results) => {
       const eventsById = new Map()
@@ -324,7 +371,7 @@ export async function fetchProfile(pubkey, options = {}) {
       filters: [{ kinds: [0], authors: [pubkey], limit: 1 }],
     })
     const event = events[0]
-    if (!event) return fallback
+    if (!event) return { ...fallback, ok: true }
 
     return {
       ...fallback,
@@ -369,7 +416,7 @@ export async function fetchFollowing(pubkey, options = {}) {
       filters: [{ kinds: [3], authors: [pubkey], limit: 1 }],
     })
     const event = events[0]
-    if (!event) return fallback
+    if (!event) return { ...fallback, ok: true }
 
     return {
       ...fallback,
@@ -383,6 +430,40 @@ export async function fetchFollowing(pubkey, options = {}) {
     }
   } catch (error) {
     return { ...fallback, error: error?.message || 'Following fetch failed' }
+  }
+}
+
+export function buildFollowEvent(previousEvent, pubkey, follow) {
+  if (!isValidPubkey(pubkey)) throw new Error('Invalid public key.')
+  const tags = (previousEvent?.tags || []).filter(
+    (tag) => follow || tag[0] !== 'p' || tag[1] !== pubkey,
+  )
+  if (follow && !tags.some((tag) => tag[0] === 'p' && tag[1] === pubkey)) tags.push(['p', pubkey])
+  return {
+    kind: 3,
+    created_at: Math.max(nowSeconds(), (previousEvent?.created_at || 0) + 1),
+    content: previousEvent?.content || '',
+    tags,
+  }
+}
+
+export async function fetchVisualPost(eventId, options = {}) {
+  if (!HEX64_PATTERN.test(eventId || '')) return { ok: false, error: 'Invalid post ID.' }
+  try {
+    const events = await requestEvents({
+      relays: relaysForOptions(options),
+      temporaryRelays: options.temporaryRelays,
+      filters: [{ kinds: VISUAL_KINDS, ids: [eventId], limit: 1 }],
+      timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
+    })
+    const event = events[0]
+    if (!event) return { ok: false, error: 'Post not found on these relays.' }
+    const { images, videos } = extractVisualUrls(event)
+    if (!images.length && !videos.length)
+      return { ok: false, error: 'This post has no supported media.' }
+    return { ok: true, event: { ...event, imageUrls: images, videoUrls: videos } }
+  } catch (error) {
+    return { ok: false, error: error.message }
   }
 }
 
@@ -441,17 +522,26 @@ export async function fetchVisualFeed(authors, options = {}) {
       eventsById.set(event.id, event)
     }
 
+    const sortedEvents = [...eventsById.values()].sort(
+      (a, b) => (b.created_at || 0) - (a.created_at || 0),
+    )
+    const visualEvents = sortedEvents
+      .map((event) => {
+        const { images, videos } = extractVisualUrls(event)
+        return { ...event, imageUrls: images, videoUrls: videos }
+      })
+      .filter((event) => event.imageUrls.length || event.videoUrls.length)
+      .slice(0, options.limit || MAX_VISUAL_EVENTS)
+    const cursorEvents =
+      visualEvents.length >= (options.limit || MAX_VISUAL_EVENTS) ? visualEvents : sortedEvents
     return {
       ...fallback,
       ok: true,
-      events: [...eventsById.values()]
-        .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
-        .map((event) => {
-          const { images, videos } = extractVisualUrls(event)
-          return { ...event, imageUrls: images, videoUrls: videos }
-        })
-        .filter((event) => event.imageUrls.length || event.videoUrls.length)
-        .slice(0, options.limit || MAX_VISUAL_EVENTS),
+      events: visualEvents,
+      cursor: cursorEvents.length
+        ? Math.min(...cursorEvents.map((event) => event.created_at)) - 1
+        : null,
+      hasMore: sortedEvents.length > 0,
     }
   } catch (error) {
     return { ...fallback, error: error?.message || 'Visual feed fetch failed' }
@@ -461,16 +551,20 @@ export async function fetchVisualFeed(authors, options = {}) {
 // NIP-68 kind 20: picture-first post. The image lives in an `imeta` tag (NIP-92);
 // `.content` carries only the description, never the URL.
 export function buildPictureEvent({ caption = '', mediaUrl, media = {} } = {}) {
+  if (!/^https?:\/\//i.test(mediaUrl || '')) throw new Error('A public image URL is required.')
+  if (media.mimeType && !/^image\/(apng|avif|gif|jpeg|png|webp)$/.test(media.mimeType)) {
+    throw new Error('NIP-68 requires a supported image type.')
+  }
   const content = String(caption || '').trim()
   const imeta = ['imeta']
   if (mediaUrl) imeta.push(`url ${String(mediaUrl).trim()}`)
   if (media.mimeType) imeta.push(`m ${media.mimeType}`)
   if (media.dimensions) imeta.push(`dim ${media.dimensions}`)
   if (media.sha256) imeta.push(`x ${media.sha256}`)
-  // ponytail: assumes upload metadata is present — NIP-92 requires url plus at least
-  // one other field, and the Blossom path always supplies m + x.
-
   const tags = imeta.length > 1 ? [imeta] : []
+  tags.push(['title', content.split('\n')[0].slice(0, 80) || 'Photo'])
+  if (media.mimeType) tags.push(['m', media.mimeType])
+  if (media.sha256) tags.push(['x', media.sha256])
   for (const hashtag of hashtagsFromText(content)) {
     tags.push(['t', hashtag])
   }
@@ -512,7 +606,9 @@ export async function publishEvent(event, options = {}) {
     return { ...fallback, error: 'Cannot publish event in this environment' }
   }
 
-  const results = await Promise.allSettled(pool.publish(relayUrls, event)).then((settled) =>
+  const results = await Promise.allSettled(
+    pool.publish(relayUrls, event, { maxWait: options.timeoutMs || DEFAULT_TIMEOUT_MS }),
+  ).then((settled) =>
     settled.map((result, index) => ({
       relay: relayUrls[index],
       ok: result.status === 'fulfilled',

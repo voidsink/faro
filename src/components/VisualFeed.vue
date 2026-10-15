@@ -1,7 +1,7 @@
 <template>
   <section class="visual-feed column q-gutter-y-sm full-width">
     <div class="row items-center justify-end q-col-gutter-sm q-mx-sm">
-      <h2 class="text-h6 text-weight-bolder q-ma-none q-mr-auto gt-sm">Visual feed</h2>
+      <h2 class="text-h6 text-weight-bolder q-ma-none q-mr-auto">{{ title }}</h2>
       <div class="col-auto row items-center q-col-gutter-sm">
         <div class="col-auto" v-if="!isMobile">
           <q-checkbox
@@ -31,6 +31,23 @@
           </q-btn>
         </div>
       </div>
+    </div>
+
+    <q-banner v-if="error" rounded class="faro-warning q-mt-sm" role="alert">
+      {{ error }}
+      <template #action
+        ><q-btn flat no-caps label="Try again" :loading="refreshing" @click="$emit('refresh')"
+      /></template>
+    </q-banner>
+
+    <div
+      v-if="refreshing && !posts.length"
+      class="column q-gutter-md q-mt-md"
+      role="status"
+      aria-label="Loading posts"
+    >
+      <q-skeleton height="320px" class="faro-surface" />
+      <p class="text-center text-blue-grey-6">Finding photos on Nostr…</p>
     </div>
 
     <q-banner
@@ -68,7 +85,7 @@
     >
       <q-infinite-scroll
         v-if="posts.length"
-        :disable="!hasMore"
+        :disable="!hasMore || Boolean(error) || refreshing"
         :offset="700"
         @load="loadMore"
         class="full-width"
@@ -86,9 +103,8 @@
             :interaction="interactionForPost(post)"
             :reply-author="replyAuthor"
             :format-date="formatDate"
+            :comment-on-post="commentOnPost"
             @like-post="$emit('like-post', post)"
-            @comment-post="(content) => $emit('comment-post', post, content)"
-            @zap-post="$emit('zap-post', post)"
           />
         </div>
 
@@ -104,7 +120,7 @@
       </q-infinite-scroll>
 
       <q-card
-        v-else
+        v-else-if="!refreshing && !error"
         flat
         bordered
         class="faro-surface column flex-center text-center q-pa-xl q-mt-md q-gutter-md"
@@ -114,7 +130,7 @@
         <div>
           <p class="text-weight-bold text-body1 q-ma-none">No visuals yet</p>
           <p class="text-caption text-blue-grey-6 q-ma-none q-mt-xs">
-            Post locally or fetch visuals from Nostr.
+            Follow a person by their Nostr public key or explore a topic above to start your feed.
           </p>
         </div>
         <q-btn
@@ -126,6 +142,7 @@
           label="Create post"
           to="/new"
         />
+        <q-btn flat no-caps color="dark" label="Explore #photography" to="/tag/photography" />
       </q-card>
     </q-pull-to-refresh>
   </section>
@@ -144,12 +161,13 @@ const emit = defineEmits([
   'refresh',
   'update:twoColumnFeed',
   'like-post',
-  'comment-post',
-  'zap-post',
   'show-pending',
 ])
 
 const props = defineProps({
+  title: { type: String, default: 'Feed' },
+  error: { type: String, default: '' },
+  commentOnPost: { type: Function, required: true },
   posts: {
     type: Array,
     default: () => [],

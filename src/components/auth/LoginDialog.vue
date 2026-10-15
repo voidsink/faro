@@ -30,12 +30,13 @@
             class="login-option"
             icon="account_circle"
             label="Continue with Google"
+            :loading="bunkerLoading"
             @click="$emit('login-google')"
           >
             <q-tooltip>Sign in with Google via Pomegranate (NIP-46 remote signer)</q-tooltip>
           </q-btn>
           <div class="option-caption">
-            Easiest onboarding once Pomegranate is wired. Creates or recovers a Nostr identity.
+            Connect your Nostr account through Pomegranate’s Google sign-in.
           </div>
         </div>
 
@@ -52,6 +53,23 @@
             @click="$emit('login-nip07')"
           />
           <div class="option-caption">Use Alby, nos2x, Flamingo or another NIP-07 extension.</div>
+        </div>
+
+        <div class="login-option-block">
+          <q-btn
+            outline
+            color="dark"
+            no-caps
+            align="left"
+            class="login-option"
+            icon="vpn_key"
+            label="Create a Nostr account"
+            :disable="bunkerLoading"
+            @click="$emit('create-key')"
+          />
+          <div class="option-caption">
+            New to Nostr? Create a key and back it up to keep your account.
+          </div>
         </div>
 
         <q-expansion-item
@@ -146,15 +164,6 @@
               />
             </q-card>
 
-            <q-btn
-              outline
-              color="dark"
-              no-caps
-              icon="vpn_key"
-              label="Create a new key"
-              @click="$emit('create-key')"
-            />
-
             <q-banner rounded dense class="bg-red-1 text-red-10">
               Importing an nsec gives Faro direct access to your private key. Prefer Google, browser
               signer, or bunker if possible. Use a burner key unless you understand the risk.
@@ -173,6 +182,7 @@
                   flat
                   round
                   :icon="showNsec ? 'visibility_off' : 'visibility'"
+                  aria-label="Toggle private key visibility"
                   @click="showNsec = !showNsec"
                 />
               </template>
@@ -182,6 +192,7 @@
                   flat
                   color="negative"
                   label="Import"
+                  :disable="!nsecValue.trim() || bunkerLoading"
                   @click="$emit('import-nsec', nsecValue)"
                 />
               </template>
@@ -196,6 +207,8 @@
 <script setup>
 import { toDataURL } from 'qrcode'
 import { ref, watch } from 'vue'
+import { copyToClipboard } from 'quasar'
+import { notifyError, notifySuccess } from 'src/utils/notify'
 import { createNostrConnectToken } from 'src/services/auth/nip46'
 import { loadRelays } from 'src/services/nostrRelay'
 
@@ -231,7 +244,11 @@ const nostrConnect = ref({ uri: '', qr: '', clientSecretKey: null, abortControll
 watch(
   () => props.modelValue,
   (isOpen) => {
-    if (!isOpen) cancelNostrConnect()
+    if (!isOpen) {
+      cancelNostrConnect()
+      nsecValue.value = ''
+      showNsec.value = false
+    }
   },
 )
 
@@ -244,13 +261,15 @@ watch(
 
 async function generateNostrConnect() {
   cancelNostrConnect()
-  const token = createNostrConnectToken({ relays: loadRelays(), name: 'Faro' })
-  nostrConnect.value = {
-    ...token,
-    qr: await toDataURL(token.uri, { margin: 2, width: 220 }),
-    abortController: null,
+  try {
+    const token = createNostrConnectToken({ relays: loadRelays(), name: 'Faro' })
+    const qr = await toDataURL(token.uri, { margin: 2, width: 220 })
+    if (!props.modelValue) return
+    nostrConnect.value = { ...token, qr, abortController: null }
+    connectGeneratedNostrConnect()
+  } catch {
+    notifyError('Could not create a connection request. Please try again.')
   }
-  connectGeneratedNostrConnect()
 }
 
 function connectGeneratedNostrConnect() {
@@ -276,7 +295,12 @@ function handleDialogModelUpdate(value) {
 
 async function copyNostrConnect() {
   if (!nostrConnect.value.uri) return
-  await navigator.clipboard?.writeText(nostrConnect.value.uri)
+  try {
+    await copyToClipboard(nostrConnect.value.uri)
+    notifySuccess('Connection string copied.')
+  } catch {
+    notifyError('Could not copy. Select the connection string manually.')
+  }
 }
 </script>
 

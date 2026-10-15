@@ -4,6 +4,8 @@
       <router-view />
     </q-page-container>
 
+    <key-backup-dialog />
+
     <!-- Instagram-shaped nav: the primary destinations live at the bottom on phones.
          lt-md is Quasar's responsive visibility class (xs/sm only), so desktop keeps
          the right rail and no tab bar. -->
@@ -16,13 +18,30 @@
         indicator-color="transparent"
         class="text-blue-grey-6"
       >
-        <q-tab name="home" icon="home" label="Home" to="/" exact aria-label="Home" />
-        <q-tab name="new" icon="add_box" label="Post" to="/new" aria-label="New post" />
-        <q-tab name="profile" icon="person" label="Profile" to="/profile" aria-label="Profile" />
+        <q-route-tab name="home" icon="home" label="Home" to="/" exact aria-label="Home" />
+        <q-route-tab name="new" icon="add_box" label="Post" to="/new" aria-label="New post" />
+        <q-route-tab
+          name="profile"
+          icon="person"
+          label="Profile"
+          to="/profile"
+          aria-label="Profile"
+        />
+        <q-route-tab
+          name="settings"
+          icon="settings"
+          label="Settings"
+          to="/settings"
+          aria-label="Settings"
+        />
       </q-tabs>
     </q-footer>
   </q-layout>
 </template>
+
+<script setup>
+import KeyBackupDialog from 'components/auth/KeyBackupDialog.vue'
+</script>
 
 <style scoped>
 .app-shell {

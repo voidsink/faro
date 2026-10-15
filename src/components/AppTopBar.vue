@@ -3,7 +3,7 @@
     <q-toolbar class="toolbar q-px-md">
       <q-btn flat round dense aria-label="Home" to="/">
         <q-avatar>
-          <img src="~/assets/faro.svg" />
+          <img src="~/assets/faro.svg" alt="Faro" />
         </q-avatar>
       </q-btn>
       <q-toolbar-title class="brand-title q-pl-xs">faro</q-toolbar-title>
@@ -11,7 +11,7 @@
       <div class="nav-actions row items-center no-wrap q-gutter-sm">
         <template v-if="identity">
           <q-btn flat round icon="add_box" aria-label="New post" to="/new" />
-          <q-btn round>
+          <q-btn flat round aria-label="Account menu">
             <q-avatar v-if="activeProfile?.picture">
               <q-img :src="activeProfile.picture" :alt="displayName" ratio="1" />
             </q-avatar>
@@ -55,8 +55,6 @@
 </template>
 
 <script setup>
-// import UserAvatar from 'components/UserAvatar.vue'
-
 defineProps({
   identity: {
     type: Object,

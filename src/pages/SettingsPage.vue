@@ -17,15 +17,15 @@
         </q-banner>
 
         <q-list separator>
-          <q-item>
+          <q-item class="settings-row">
             <q-item-section avatar>
               <q-icon name="cloud_upload" />
             </q-item-section>
             <q-item-section>
               <q-item-label>Media storage</q-item-label>
               <q-item-label caption>
-                Blossom stores image bytes. Faro tries servers in order, so keep 2–3 CORS-friendly
-                servers for redundancy.
+                Your photos are uploaded to the first available server in this list. Use a server
+                that allows uploads from your browser.
               </q-item-label>
               <q-input
                 v-model="draftBlossomServers"
@@ -35,7 +35,7 @@
                 class="q-mt-sm relay-input"
                 label="Blossom server URLs"
                 placeholder="https://cdn.nostrverse.net"
-                hint="One per line or comma-separated. bouquet.slidestr.net currently fails browser CORS."
+                hint="One URL per line or separated by commas."
               />
               <div class="row q-gutter-xs q-mt-sm">
                 <q-btn-dropdown flat dense no-caps color="dark" label="Add default server">
@@ -66,7 +66,7 @@
             </q-item-section>
           </q-item>
 
-          <q-item>
+          <q-item class="settings-row">
             <q-item-section avatar>
               <q-icon name="dns" />
             </q-item-section>
@@ -83,7 +83,7 @@
                 autogrow
                 class="q-mt-sm relay-input"
                 label="Relay URLs"
-                hint="One per line or comma-separated. Defaults include Damus, nos.lol, Primal, and nostr.band."
+                hint="One URL per line or separated by commas."
               />
               <div class="row q-gutter-xs q-mt-sm">
                 <q-btn
@@ -108,7 +108,7 @@
             </q-item-section>
           </q-item>
 
-          <q-item>
+          <q-item class="settings-row">
             <q-item-section avatar>
               <q-icon name="tag" />
             </q-item-section>
@@ -127,6 +127,7 @@
                 label="Hashtags"
                 placeholder="#bitcoin\n#photography"
                 hint="One per line, comma, or space. # is optional."
+                :disable="!session.identity"
               />
             </q-item-section>
             <q-item-section side>
@@ -136,22 +137,44 @@
                 no-caps
                 color="dark"
                 label="Save"
+                :disable="!session.identity"
                 @click="saveHashtagSettings"
               />
             </q-item-section>
           </q-item>
 
-          <q-item>
-            <q-item-section avatar>
-              <q-icon name="notifications" />
-            </q-item-section>
+          <q-item v-if="session.secretKey">
             <q-item-section>
-              <q-item-label>Notifications</q-item-label>
-              <q-item-label caption>Coming soon</q-item-label>
+              <q-item-label>Private key backup</q-item-label>
+              <q-item-label caption
+                >Your key is kept for this session only. Back it up before reloading or signing
+                out.</q-item-label
+              >
             </q-item-section>
-            <q-item-section side>
-              <q-toggle v-model="notificationsEnabled" disable />
-            </q-item-section>
+            <q-item-section side
+              ><q-btn
+                outline
+                no-caps
+                color="dark"
+                label="Back up key"
+                @click="session.keyBackupRequired = true"
+            /></q-item-section>
+          </q-item>
+          <q-item
+            tag="a"
+            href="https://github.com/voidsink/faro"
+            target="_blank"
+            rel="noopener noreferrer"
+            clickable
+          >
+            <q-item-section avatar><q-icon name="code" /></q-item-section>
+            <q-item-section
+              ><q-item-label>Faro is open source</q-item-label
+              ><q-item-label caption
+                >Read the code, report a bug, or contribute.</q-item-label
+              ></q-item-section
+            >
+            <q-item-section side><q-icon name="open_in_new" /></q-item-section>
           </q-item>
         </q-list>
       </q-card>
@@ -176,9 +199,9 @@ const draftBlossomServers = ref('')
 const draftRelays = ref('')
 const draftHashtags = ref('')
 const message = ref('')
-const notificationsEnabled = ref(false)
 
 onMounted(() => {
+  session.init()
   draftBlossomServers.value = loadBlossomServers().join('\n')
   draftRelays.value = loadRelays().join('\n')
   draftHashtags.value = session.followedHashtags.map((tag) => `#${tag}`).join('\n')
@@ -239,5 +262,42 @@ h1 {
 .relay-input :deep(textarea) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.82rem;
+}
+
+.relay-input {
+  padding-bottom: 0;
+}
+
+.relay-input :deep(.q-field__bottom) {
+  position: relative;
+  transform: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+@media (max-width: 599px) {
+  .settings-content > .q-card {
+    padding: 20px;
+  }
+
+  .settings-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 20px 0;
+  }
+
+  .settings-row > .q-item__section--avatar {
+    display: none;
+  }
+
+  .settings-row > .q-item__section--main {
+    margin-left: 0;
+  }
+
+  .settings-row > .q-item__section--side {
+    padding-left: 0;
+    align-items: flex-end;
+  }
 }
 </style>

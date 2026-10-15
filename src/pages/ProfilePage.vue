@@ -41,6 +41,14 @@
             <q-btn flat round icon="home" aria-label="Home" to="/" />
             <q-btn
               v-if="isOwnProfile"
+              unelevated
+              color="dark"
+              no-caps
+              label="Edit profile"
+              @click="openProfileEditor"
+            />
+            <q-btn
+              v-if="isOwnProfile"
               outline
               color="dark"
               no-caps
@@ -48,18 +56,74 @@
               label="Logout"
               @click="logout"
             />
-            <q-btn v-else-if="!pubkey" unelevated color="dark" no-caps label="Sign in" to="/" />
+            <q-btn
+              v-if="isOwnProfile"
+              flat
+              no-caps
+              icon="settings"
+              label="Settings"
+              to="/settings"
+            />
+            <q-btn
+              v-else-if="!identity"
+              unelevated
+              color="dark"
+              no-caps
+              label="Sign in"
+              to="/?signin=1"
+            />
             <q-btn
               v-else
               unelevated
               color="dark"
               no-caps
-              :label="following ? 'Following' : 'Follow'"
-              @click="following = !following"
+              :label="isFollowing ? 'Unfollow' : 'Follow on Nostr'"
+              :outline="isFollowing"
+              :loading="session.publishingFollow"
+              :disable="!identity || !pubkey"
+              @click="session.setFollowing(pubkey, !isFollowing)"
             />
           </div>
         </div>
       </q-card>
+
+      <q-dialog v-model="editingProfile" :persistent="session.savingProfile">
+        <q-card class="faro-surface q-pa-lg" style="width: min(92vw, 520px)">
+          <q-form class="column q-gutter-md" @submit="saveProfile">
+            <h2 class="text-h6 q-ma-none">Edit your public profile</h2>
+            <q-input
+              v-model="profileDraft.display_name"
+              outlined
+              label="Display name"
+              maxlength="80"
+            />
+            <q-input
+              v-model="profileDraft.about"
+              outlined
+              type="textarea"
+              autogrow
+              label="About you"
+              maxlength="1000"
+            />
+            <q-input v-model="profileDraft.picture" outlined type="url" label="Avatar image URL" />
+            <q-input v-model="profileDraft.banner" outlined type="url" label="Cover image URL" />
+            <p class="text-caption text-blue-grey-6 q-ma-none">
+              These details are public and shared with other Nostr apps.
+            </p>
+            <div class="row justify-end q-gutter-sm">
+              <q-btn flat no-caps label="Cancel" :disable="session.savingProfile" v-close-popup />
+              <q-btn
+                unelevated
+                no-caps
+                color="dark"
+                label="Save profile"
+                type="submit"
+                :loading="session.savingProfile"
+              />
+            </div>
+          </q-form>
+        </q-card>
+      </q-dialog>
 
       <div class="row items-center justify-between q-mt-lg q-mb-sm">
         <h2 class="section-heading q-ma-none">Posts</h2>
@@ -73,8 +137,28 @@
           type="button"
           class="photo-tile"
           :aria-label="post.caption || 'Profile post image'"
+          @click="$router.push(`/post/${post.id}`)"
         >
-          <q-img :src="post.image" :alt="post.caption || 'Posted photo'" fit="cover" ratio="1" />
+          <q-img
+            v-if="post.image && !post.contentWarning"
+            :src="post.image"
+            :alt="post.caption || 'Posted photo'"
+            fit="cover"
+            ratio="1"
+          />
+          <video
+            v-else-if="post.video && !post.contentWarning"
+            :src="post.video"
+            muted
+            playsinline
+            preload="metadata"
+            class="tile-video"
+          />
+          <div v-else class="column flex-center full-height q-pa-md">
+            <q-icon name="visibility_off" size="28px" /><span class="text-caption"
+              >Sensitive content</span
+            >
+          </div>
           <div v-if="post.images?.length > 1" class="multi-badge row items-center q-gutter-xs">
             <q-icon name="collections" size="16px" />
             <span>{{ post.images.length }}</span>
@@ -87,7 +171,7 @@
       </p>
 
       <q-card
-        v-else
+        v-if="!posts.length"
         flat
         bordered
         class="faro-surface column flex-center text-blue-grey-6 q-gutter-sm q-pa-xl q-mt-md"
@@ -117,10 +201,13 @@ const session = useSessionStore()
 const { identity, localPosts, relayProfile, authorProfiles } = storeToRefs(session)
 const route = useRoute()
 
-const following = ref(false)
+const isFollowing = computed(() => session.following.includes(pubkey.value))
 const profileLoading = ref(false)
 const profileError = ref('')
 const profileRelayPosts = ref([])
+const editingProfile = ref(false)
+const profileDraft = ref({})
+let profileRequest = 0
 const profileReference = computed(() => {
   const param = route.params.pubkey
   if (!param) return { pubkey: identity.value?.pubkey || '', relays: [] }
@@ -133,14 +220,14 @@ const profileReference = computed(() => {
     // Plain hex pubkeys are not NIP-19 encoded.
   }
 
-  return { pubkey: param, relays: [] }
+  return { pubkey: /^[0-9a-f]{64}$/i.test(param) ? param : '', relays: [] }
 })
 const pubkey = computed(() => profileReference.value.pubkey)
 const profileRelays = computed(() => profileReference.value.relays)
 const profile = computed(() => {
   const cached = normalizeProfile(authorProfiles.value[pubkey.value])
   if (pubkey.value && pubkey.value === identity.value?.pubkey) {
-    return { ...normalizeProfile(relayProfile.value), ...cached, ...identity.value }
+    return normalizeProfile(relayProfile.value)
   }
   return cached
 })
@@ -186,6 +273,17 @@ function normalizeProfile(profile = {}) {
   }
 }
 
+function openProfileEditor() {
+  profileDraft.value = Object.fromEntries(
+    ['display_name', 'about', 'picture', 'banner'].map((key) => [key, profile.value[key] || '']),
+  )
+  editingProfile.value = true
+}
+
+async function saveProfile() {
+  if (await session.updateProfile(profileDraft.value)) editingProfile.value = false
+}
+
 onMounted(async () => {
   session.init()
   await fetchProfileContent(pubkey.value)
@@ -196,18 +294,27 @@ watch(pubkey, async (next) => {
 })
 
 async function fetchProfileContent(nextPubkey) {
-  if (!nextPubkey) return
+  const current = ++profileRequest
+  profileRelayPosts.value = []
+  profileError.value = ''
+  if (!nextPubkey) {
+    profileLoading.value = false
+    return
+  }
 
   profileLoading.value = true
   profileError.value = ''
   try {
     await session.fetchProfileByPubkey(nextPubkey)
+    if (current !== profileRequest) return
     const visualResult = await fetchVisualFeed([nextPubkey], {
       limit: 60,
       timeoutMs: 7500,
       anonymous: !session.identity?.pubkey,
       temporaryRelays: profileRelays.value,
     })
+
+    if (current !== profileRequest) return
 
     if (!visualResult.ok) {
       profileRelayPosts.value = []
@@ -216,12 +323,14 @@ async function fetchProfileContent(nextPubkey) {
     }
 
     await session.hydrateAuthorProfiles([nextPubkey])
+    if (current !== profileRequest) return
     profileRelayPosts.value = session.postsFromVisualEvents(visualResult.events)
   } catch (error) {
+    if (current !== profileRequest) return
     profileRelayPosts.value = []
     profileError.value = error?.message || 'Could not fetch profile posts from relays.'
   } finally {
-    profileLoading.value = false
+    if (current === profileRequest) profileLoading.value = false
   }
 }
 
@@ -259,6 +368,7 @@ h1 {
 .bio {
   max-width: 520px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .profile-chip {
@@ -282,6 +392,7 @@ h1 {
 }
 
 .photo-tile {
+  aspect-ratio: 1;
   position: relative;
   display: block;
   padding: 0;
@@ -290,6 +401,12 @@ h1 {
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 18px;
   cursor: pointer;
+}
+
+.tile-video {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
 }
 
 .photo-tile:focus-visible {

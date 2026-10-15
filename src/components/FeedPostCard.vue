@@ -11,89 +11,99 @@
           />
         </q-item-section>
         <q-item-section>
-          <q-item-label class="text-weight-bold text-body2">{{ post.author.name }}</q-item-label>
+          <router-link
+            :to="`/profile/${post.author.pubkey}`"
+            class="text-weight-bold text-body2 author-link"
+            >{{ post.author.name }}</router-link
+          >
           <q-item-label caption class="text-blue-grey-6 text-caption">{{
             formattedDate
           }}</q-item-label>
         </q-item-section>
-        <q-item-section side>
-          <q-btn flat round dense icon="more_horiz" color="blue-grey-6" aria-label="Post options" />
-        </q-item-section>
       </q-item>
     </q-card-section>
 
-    <div v-if="postImages.length > 1" class="relative-position bg-grey-1">
-      <q-carousel
-        v-model="activeImage"
-        swipeable
-        arrows
-        animated
-        transition-prev="slide-right"
-        transition-next="slide-left"
-        navigation
-        navigation-icon="fiber_manual_record"
-        navigation-active-icon="fiber_manual_record"
-        height="auto"
-        class="feed-carousel"
-        control-type="flat"
-        control-color="blue-grey-10"
-      >
-        <q-carousel-slide
-          v-for="(image, index) in postImages"
-          :key="index"
-          :name="index"
-          class="q-pa-none flex flex-center"
+    <q-banner v-if="contentWarning && !mediaRevealed" class="faro-warning" role="status">
+      Content warning: {{ contentWarning }}
+      <template #action
+        ><q-btn flat no-caps label="Show media" @click="mediaRevealed = true"
+      /></template>
+    </q-banner>
+    <template v-if="!contentWarning || mediaRevealed">
+      <div v-if="postImages.length > 1" class="relative-position bg-grey-1">
+        <q-carousel
+          v-model="activeImage"
+          swipeable
+          arrows
+          animated
+          transition-prev="slide-right"
+          transition-next="slide-left"
+          navigation
+          navigation-icon="fiber_manual_record"
+          navigation-active-icon="fiber_manual_record"
+          height="auto"
+          class="feed-carousel"
+          control-type="flat"
+          control-color="blue-grey-10"
         >
-          <img
-            :src="image"
-            :alt="post.caption || `Visual post image ${index + 1}`"
-            loading="lazy"
-            spinner-color="white"
-            class="feed-image block"
-          />
-        </q-carousel-slide>
-        <template #navigation-icon="{ active, btnProps, onClick }">
-          <q-btn
-            v-if="active"
-            size="xs"
-            :icon="btnProps.icon"
-            color="light-blue-5"
-            round
-            flat
-            dense
-            @click="onClick"
-          />
-          <q-btn
-            v-else
-            size="xs"
-            :icon="btnProps.icon"
-            color="white"
-            round
-            flat
-            dense
-            @click="onClick"
-          />
-        </template>
-      </q-carousel>
-    </div>
+          <q-carousel-slide
+            v-for="(image, index) in postImages"
+            :key="index"
+            :name="index"
+            class="q-pa-none flex flex-center"
+          >
+            <img
+              :src="image"
+              :alt="post.caption || `Visual post image ${index + 1}`"
+              loading="lazy"
+              class="feed-image block"
+            />
+          </q-carousel-slide>
+          <template #navigation-icon="{ active, btnProps, onClick, index }">
+            <q-btn
+              v-if="active"
+              size="xs"
+              :icon="btnProps.icon"
+              color="dark"
+              round
+              flat
+              dense
+              :aria-label="`Show image ${index + 1}`"
+              @click="onClick"
+            />
+            <q-btn
+              v-else
+              size="xs"
+              :icon="btnProps.icon"
+              color="grey-6"
+              round
+              flat
+              dense
+              :aria-label="`Show image ${index + 1}`"
+              @click="onClick"
+            />
+          </template>
+        </q-carousel>
+      </div>
 
-    <img
-      v-else-if="postImages.length === 1"
-      :src="postImages[0]"
-      :alt="post.caption || 'Visual post image'"
-      loading="lazy"
-      decoding="async"
-      class="feed-image block bg-grey-1"
-    />
+      <img
+        v-else-if="postImages.length === 1"
+        :src="postImages[0]"
+        :alt="post.caption || 'Visual post image'"
+        loading="lazy"
+        decoding="async"
+        class="feed-image block bg-grey-1"
+      />
 
-    <video
-      v-else-if="postVideos.length"
-      controls
-      playsinline
-      :src="postVideos[0]"
-      class="feed-video block bg-grey-1"
-      preload="metadata"
-    />
+      <video
+        v-else-if="postVideos.length"
+        controls
+        playsinline
+        :src="postVideos[0]"
+        class="feed-video block bg-grey-1"
+        preload="metadata"
+      />
+    </template>
 
     <q-card-actions class="row items-center justify-between q-px-sm q-py-sm">
       <div class="row items-center">
@@ -123,18 +133,6 @@
         >
           <q-tooltip>Comment</q-tooltip>
         </q-btn>
-        <q-btn
-          flat
-          round
-          dense
-          size="md"
-          icon="bolt"
-          color="blue-grey-10"
-          aria-label="Zap post"
-          @click="handleZap"
-        >
-          <q-tooltip>Zap</q-tooltip>
-        </q-btn>
       </div>
 
       <q-btn
@@ -142,11 +140,13 @@
         round
         dense
         size="md"
-        icon="bookmark_border"
+        icon="ios_share"
         color="blue-grey-10"
-        aria-label="Save post"
+        aria-label="Share post"
+        :disable="!post.nostr"
+        @click="sharePost"
       >
-        <q-tooltip>Save</q-tooltip>
+        <q-tooltip>Copy link to post</q-tooltip>
       </q-btn>
     </q-card-actions>
 
@@ -202,6 +202,8 @@
             dense
             borderless
             placeholder="Add a comment..."
+            aria-label="Add a comment"
+            :disable="commentPublishing"
             class="q-pt-sm"
           >
             <template #prepend>
@@ -214,8 +216,13 @@
                 no-caps
                 color="primary"
                 label="Post"
-                :loading="interaction?.publishing"
-                :disable="!commentDraft.trim() || !post.nostr || interaction?.publishing"
+                :loading="commentPublishing"
+                :disable="
+                  !commentDraft.trim() ||
+                  !post.nostr ||
+                  interaction?.publishing ||
+                  commentPublishing
+                "
                 @click="publishComment"
               />
             </template>
@@ -230,9 +237,11 @@
 import { computed, nextTick, ref } from 'vue'
 import CaptionWithHashtags from 'components/CaptionWithHashtags.vue'
 import UserAvatar from 'components/UserAvatar.vue'
-import { notifyInfo } from 'src/utils/notify'
+import { copyToClipboard } from 'quasar'
+import { notifyError, notifySuccess } from 'src/utils/notify'
 
 const props = defineProps({
+  commentOnPost: { type: Function, required: true },
   post: {
     type: Object,
     required: true,
@@ -250,8 +259,6 @@ const props = defineProps({
     default: () => ({ name: 'Nostr user', pubkey: '', picture: '' }),
   },
 })
-
-const emit = defineEmits(['like-post', 'comment-post', 'zap-post'])
 
 const formattedDate = computed(() => props.formatDate(props.post.createdAt))
 const postImages = computed(() =>
@@ -281,6 +288,12 @@ const engagementLabel = computed(() => {
 })
 const commentsOpen = ref(false)
 const commentDraft = ref('')
+const mediaRevealed = ref(false)
+const contentWarning = computed(() => {
+  const tag = props.post.nostr?.tags?.find((tag) => tag[0] === 'content-warning')
+  return tag ? tag[1] || 'Sensitive content' : ''
+})
+const commentPublishing = ref(false)
 const commentInput = ref(null)
 const activeImage = ref(0)
 const captionExpanded = ref(false)
@@ -300,22 +313,42 @@ async function openComments() {
   commentInput.value?.focus?.()
 }
 
-function publishComment() {
+async function publishComment() {
   const content = commentDraft.value.trim()
-  if (!content) return
-  emit('comment-post', content)
-  commentDraft.value = ''
+  if (!content || commentPublishing.value) return
+  commentPublishing.value = true
+  try {
+    if (await props.commentOnPost(props.post, content)) commentDraft.value = ''
+  } catch {
+    notifyError('Could not publish your comment. Your text is still here.')
+  } finally {
+    commentPublishing.value = false
+  }
 }
 
-function handleZap() {
-  emit('zap-post')
-  notifyInfo(
-    'Zapping requires a Lightning address and a WebLN-enabled wallet. Full zap payment flow is not wired yet.',
-  )
+async function sharePost() {
+  const url = new URL(window.location.href)
+  url.hash = `/post/${props.post.id}`
+  try {
+    await copyToClipboard(url.toString())
+    notifySuccess('Post link copied.')
+  } catch {
+    notifyError('Could not copy the link. Open the post and copy its address.')
+  }
 }
+
+defineEmits(['like-post'])
 </script>
 
 <style scoped>
+.author-link {
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.author-link:hover {
+  text-decoration: underline;
+}
 .feed-image {
   display: block;
   width: auto;
@@ -353,5 +386,12 @@ function handleZap() {
 .feed-carousel :deep(.q-carousel__arrow .q-btn) {
   background: rgba(255, 255, 255, 0.86);
   color: #263238;
+}
+
+.feed-carousel :deep(.q-carousel__navigation-inner) {
+  width: fit-content;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: rgba(255, 253, 250, 0.92);
 }
 </style>
