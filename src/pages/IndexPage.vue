@@ -2,6 +2,7 @@
   <q-page class="faro-page">
     <div class="faro-page-inner">
       <app-top-bar
+        v-if="identity || !anonymousNoticeOpen"
         :identity="identity"
         :active-profile="activeProfile"
         :display-name="displayName"
@@ -77,7 +78,8 @@
         </aside>
       </div>
 
-      <q-page-sticky position="bottom-right" :offset="[18, 18]">
+      <!-- Desktop only, and only once there is actually something to scroll back from. -->
+      <q-page-sticky v-if="showScrollTop" class="gt-sm" position="bottom-right" :offset="[18, 18]">
         <q-btn
           fab-mini
           color="dark"
@@ -91,7 +93,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import AppTopBar from 'components/AppTopBar.vue'
 import AnonymousFeedDialog from 'components/AnonymousFeedDialog.vue'
@@ -124,10 +126,21 @@ const twoColumnFeed = ref(false)
 const loginDialogOpen = ref(false)
 const anonymousNoticeOpen = ref(true)
 const anonymousFeedAllowed = ref(false)
+const showScrollTop = ref(false)
 
 onMounted(() => {
   session.init()
+  window.addEventListener('scroll', trackScroll, { passive: true })
+  trackScroll()
 })
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', trackScroll)
+})
+
+function trackScroll() {
+  showScrollTop.value = window.scrollY > 480
+}
 
 watch(identity, (nextIdentity) => {
   if (nextIdentity?.pubkey) {
@@ -189,13 +202,27 @@ async function refreshFeed(done) {
   }
 }
 
+// Instagram-shaped timestamps: "now", "12m", "3h", "5d", then a date. A visual feed does
+// not need wall-clock times, and the old two-part format wrapped on narrow cards.
 function formatDate(date) {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(date))
+  const timestamp = new Date(date).getTime()
+  if (!Number.isFinite(timestamp)) return ''
+
+  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000))
+  if (seconds < 45) return 'now'
+
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h`
+
+  const days = Math.round(hours / 24)
+  if (days < 7) return `${days}d`
+
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(
+    new Date(timestamp),
+  )
 }
 </script>
 

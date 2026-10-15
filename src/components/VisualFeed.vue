@@ -1,7 +1,7 @@
 <template>
   <section class="visual-feed column q-gutter-y-sm full-width">
-    <div class="row items-center justify-between q-col-gutter-sm q-mx-sm">
-      <h2 class="text-h6 text-weight-bolder q-ma-none">Visual feed</h2>
+    <div class="row items-center justify-end q-col-gutter-sm q-mx-sm">
+      <h2 class="text-h6 text-weight-bolder q-ma-none q-mr-auto gt-sm">Visual feed</h2>
       <div class="col-auto row items-center q-col-gutter-sm">
         <div class="col-auto" v-if="!isMobile">
           <q-checkbox
