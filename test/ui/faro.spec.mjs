@@ -224,7 +224,7 @@ test('guest composer offers sign-in, requires key backup, protects drafts and pu
   await page.getByRole('link', { name: 'Close composer' }).click()
   await expect(page).toHaveURL(/#\/new$/)
   await page.getByRole('button', { name: 'Review', exact: true }).click()
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await page.locator('.post-stepper').getByRole('button', { name: 'Sign in', exact: true }).click()
   await page.getByRole('button', { name: 'Create a Nostr account' }).click()
   await expect(page.getByRole('heading', { name: 'Keep your Nostr key safe' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Continue to Faro' })).toBeDisabled()
@@ -237,6 +237,40 @@ test('guest composer offers sign-in, requires key backup, protects drafts and pu
   expect(event.content).toBe('My Faro photo #photography')
   expect(event.tags.some((tag) => tag[0] === 'imeta')).toBe(true)
   expect(await page.evaluate(() => localStorage.getItem('faro-identity'))).toBeNull()
+})
+
+test('shared header navigates between pages without duplicate page navigation', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  const state = await setup(page, { signedIn: true })
+  await page.goto('/#/profile')
+  await expect(page.getByRole('button', { name: 'Edit profile', exact: true })).toBeVisible()
+  await expect(page.locator('main').getByLabel('Home', { exact: true })).toHaveCount(0)
+  await expect(page.locator('main').getByText('Settings', { exact: true })).toHaveCount(0)
+  const header = page.locator('.faro-header')
+  for (const width of [390, 882, 1440]) {
+    await page.setViewportSize({ width, height: 884 })
+    await expect(page.locator('.faro-header-inner')).toHaveCSS('padding-bottom', '0px')
+    await expect(header).toHaveCSS('height', '86px')
+  }
+  await header.getByRole('button', { name: 'Account menu' }).click()
+  await page.getByRole('listitem', { name: 'Settings', exact: true }).click()
+  await expect(page).toHaveURL(/#\/settings$/)
+  await expect(header).toBeVisible()
+  await header.getByLabel('New post', { exact: true }).click()
+  await expect(page).toHaveURL(/#\/new$/)
+  await expect(header).toBeVisible()
+  await header.getByLabel('Home', { exact: true }).click()
+  await expect(page).toHaveURL(/#\/$/)
+  for (const path of [
+    `/tag/photography`,
+    `/post/${state.events.find((event) => event.kind === 20).id}`,
+  ]) {
+    await page.goto(`/#${path}`)
+    await expect(header).toBeVisible()
+    await expect(page.locator('main').getByLabel('Home', { exact: true })).toHaveCount(0)
+  }
 })
 
 test('content warnings hide feed media until explicitly revealed', async ({ page }) => {
@@ -345,6 +379,7 @@ for (const viewport of [
     await expect(page.getByText('The global feed is unfiltered')).toBeVisible()
     await expect(page.locator('body')).toHaveClass(new RegExp(`body--${testInfo.project.name}`))
     const capture = async (name) => {
+      await expect(page.locator('.faro-header .q-toolbar')).toBeVisible()
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       )
@@ -410,6 +445,17 @@ for (const viewport of [
     await signIn.hover()
     await signIn.click()
     await expect(page.getByText('Sign in to Faro', { exact: true })).toBeVisible()
+    await expect(page.locator('.login-card')).toHaveCSS('outline-style', 'none')
+    await page.getByText('Other login methods', { exact: true }).click()
+    const bunker = page.getByRole('textbox', { name: 'Paste remote signer / bunker URL' })
+    await bunker.focus()
+    await expect(bunker).toHaveCSS('outline-style', 'none')
+    await expect(page.locator('.login-card .q-field').filter({ has: bunker })).toHaveClass(
+      /q-field--focused/,
+    )
+    const nsec = page.getByLabel('Paste nsec private key', { exact: true })
+    await nsec.fill('test-private-key')
+    await expect(nsec).toHaveCSS('outline-style', 'none')
     await capture('login')
     await page.getByRole('button', { name: 'Close login' }).click()
     await page.goto('/#/settings')
@@ -426,5 +472,15 @@ for (const viewport of [
       .setInputFiles(new URL('./fixtures/landscape.jpg', import.meta.url).pathname)
     await expect(page.getByRole('button', { name: 'Original', exact: true })).toBeVisible()
     await capture('composer')
+    await page.getByRole('button', { name: 'Continue', exact: true }).click()
+    const caption = page.getByRole('textbox', { name: 'Caption', exact: true })
+    await caption.fill('A photo caption')
+    await expect(caption).toHaveCSS('outline-style', 'none')
+    await expect(page.locator('.post-stepper .q-field')).toHaveClass(/q-field--focused/)
+    await capture('caption')
+    await page.getByRole('button', { name: 'Review', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Save locally' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Publish to Nostr' })).toBeVisible()
+    await capture('review')
   })
 }

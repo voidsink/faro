@@ -12,7 +12,6 @@
             </p>
           </div>
           <div class="row q-gutter-sm">
-            <q-btn flat round icon="home" aria-label="Home" to="/" />
             <q-btn
               unelevated
               :color="isFollowing ? 'accent' : 'primary'"

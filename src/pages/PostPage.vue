@@ -2,7 +2,6 @@
   <q-page class="faro-page">
     <div class="faro-page-inner post-content">
       <div class="row items-center justify-between q-mb-md">
-        <q-btn flat no-caps icon="arrow_back" label="Home" to="/" />
         <h1 class="text-h6 q-ma-none">Post</h1>
         <q-btn flat round icon="person" aria-label="Your profile" to="/profile" />
       </div>

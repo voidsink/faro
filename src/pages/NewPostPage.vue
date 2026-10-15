@@ -174,7 +174,7 @@
             </q-banner>
 
             <q-banner v-if="!identity" rounded class="faro-warning q-mb-md">
-              Sign in to publish or save this photo. Your draft stays here while you connect.
+              Sign in to publish this photo. Your draft stays here while you connect.
               <template #action
                 ><q-btn
                   unelevated
@@ -194,8 +194,7 @@
               />
             </q-banner>
             <p class="text-caption faro-muted">
-              Publishing shares this photo publicly with Nostr and your media server. Save locally
-              keeps a draft in this browser only.
+              Publishing shares this photo publicly with Nostr and your media server.
             </p>
 
             <q-card flat bordered class="review-card overflow-hidden q-mx-auto">
@@ -223,22 +222,12 @@
             <q-stepper-navigation class="stepper-nav row justify-end q-gutter-sm q-pb-none">
               <q-btn flat no-caps label="Back" @click="step = 3" />
               <q-btn
-                flat
-                color="accent"
-                no-caps
-                icon="save"
-                label="Save locally"
-                :loading="publishing && publishMode === 'local'"
-                :disable="!canSaveLocally"
-                @click="saveLocalPost"
-              />
-              <q-btn
                 unelevated
                 color="primary"
                 no-caps
                 icon="send"
                 label="Publish to Nostr"
-                :loading="publishing && publishMode === 'nostr'"
+                :loading="publishing"
                 :disable="!canAttemptNostrPublish"
                 @click="publishNostrPost"
               />
@@ -275,7 +264,6 @@ const publishing = ref(false)
 const processing = ref(false)
 const draftSaved = ref(false)
 let imageRequest = 0
-const publishMode = ref('')
 const loginDialogOpen = ref(false)
 const galleryInput = ref(null)
 const cameraInput = ref(null)
@@ -300,9 +288,6 @@ const previewFrameStyle = computed(() => {
     '--preview-ratio': numeric,
   }
 })
-const canSaveLocally = computed(() =>
-  Boolean(identity.value && imagePreview.value && !publishing.value && !processing.value),
-)
 const canAttemptNostrPublish = computed(() =>
   Boolean(
     processedMedia.value?.blob &&
@@ -329,7 +314,7 @@ function warnBeforeUnload(event) {
 }
 onBeforeRouteLeave(() => {
   if (publishing.value) {
-    notifyError('Please wait for your post to finish saving or publishing.')
+    notifyError('Please wait for your post to finish publishing.')
     return false
   }
   return (
@@ -418,54 +403,6 @@ function ratioToNumber(ratio) {
   return value.width / value.height
 }
 
-async function saveLocalPost() {
-  if (!identity.value) {
-    notifyError('Login or create a local identity before saving locally.')
-    return
-  }
-  if (!imagePreview.value) {
-    notifyError('Choose an image before saving.')
-    return
-  }
-
-  publishing.value = true
-  publishMode.value = 'local'
-  try {
-    const nextPost = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      author: { name: displayName.value, pubkey: identity.value.pubkey },
-      caption: caption.value.trim(),
-      image: processedMedia.value?.dataUrl || imagePreview.value,
-      media: serializableMedia(processedMedia.value),
-      ratio: selectedRatio.value,
-      createdAt: new Date().toISOString(),
-      source: 'local draft',
-    }
-    session.addLocalPost(nextPost)
-    draftSaved.value = true
-    publishing.value = false
-    await router.push('/')
-  } catch {
-    notifyError('Could not save locally. Try a smaller image.')
-  } finally {
-    publishing.value = false
-    publishMode.value = ''
-  }
-}
-
-function serializableMedia(media) {
-  return media
-    ? {
-        mimeType: media.mimeType,
-        sha256: media.sha256,
-        width: media.width,
-        height: media.height,
-        dimensions: media.dimensions,
-        bytes: media.bytes,
-      }
-    : null
-}
-
 async function publishNostrPost() {
   const signer = await session.activeSigner('publishing to Nostr')
   if (!signer) {
@@ -484,7 +421,6 @@ async function publishNostrPost() {
   }
 
   publishing.value = true
-  publishMode.value = 'nostr'
 
   try {
     const uploadResult = await uploadBlobToBlossom(processedMedia.value, {
@@ -524,7 +460,6 @@ async function publishNostrPost() {
     notifyError(error?.message || 'Nostr publish failed.')
   } finally {
     publishing.value = false
-    publishMode.value = ''
   }
 }
 

@@ -1,5 +1,28 @@
 <template>
   <q-layout view="lHh Lpr lFf" class="app-shell">
+    <q-header class="faro-header">
+      <div class="faro-header-inner">
+        <app-top-bar
+          :identity="identity"
+          :active-profile="activeProfile"
+          :display-name="displayName"
+          @open-login="loginDialogOpen = true"
+          @logout="session.logout"
+        />
+      </div>
+    </q-header>
+
+    <login-dialog
+      v-model="loginDialogOpen"
+      :has-nip07="hasNip07"
+      :bunker-loading="session.bunkerLoading"
+      @login-google="session.loginWithGoogle"
+      @login-nip07="session.loginWithNip07"
+      @login-bunker="session.loginWithBunker"
+      @create-key="session.createLocalKey"
+      @import-nsec="session.importNsec"
+    />
+
     <q-page-container>
       <router-view />
     </q-page-container>
@@ -37,10 +60,34 @@
 </template>
 
 <script setup>
+import { ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import AppTopBar from 'components/AppTopBar.vue'
+import LoginDialog from 'components/auth/LoginDialog.vue'
+import { useSessionStore } from 'src/stores/session-store'
 import KeyBackupDialog from 'components/auth/KeyBackupDialog.vue'
+
+const session = useSessionStore()
+const { identity, activeProfile, displayName, hasNip07 } = storeToRefs(session)
+const loginDialogOpen = ref(false)
+session.init()
+watch(identity, (value) => {
+  if (value?.pubkey) loginDialogOpen.value = false
+})
 </script>
 
 <style scoped>
+.faro-header {
+  background: var(--faro-canvas);
+  color: var(--faro-ink);
+}
+
+.faro-header-inner {
+  width: min(100%, 960px);
+  margin: 0 auto;
+  padding: 20px 12px 0;
+}
+
 .faro-tabbar {
   border-top: 1px solid var(--faro-surface-border);
   background: var(--faro-surface-bg);

@@ -1,12 +1,23 @@
 <template>
-  <q-card flat bordered class="faro-surface q-mb-md">
+  <q-card flat bordered class="faro-surface">
     <q-toolbar class="toolbar q-px-md">
-      <q-btn flat round dense aria-label="Home" to="/">
-        <span class="faro-logo" aria-hidden="true" />
-      </q-btn>
-      <q-toolbar-title class="brand-title q-pl-xs">faro</q-toolbar-title>
+      <q-toolbar-title class="q-pa-none">
+        <q-btn flat dense no-caps class="brand-title" aria-label="Home" to="/">
+          <span class="faro-logo q-mr-xs" aria-hidden="true" />
+          faro
+        </q-btn>
+      </q-toolbar-title>
 
       <div class="nav-actions row items-center no-wrap q-gutter-sm">
+        <q-btn
+          v-if="!identity"
+          class="gt-sm"
+          flat
+          round
+          icon="settings"
+          aria-label="Settings"
+          to="/settings"
+        />
         <template v-if="identity">
           <q-btn flat round icon="add_box" aria-label="New post" to="/new" />
           <q-btn flat round aria-label="Account menu">
@@ -65,13 +76,9 @@ defineProps({
     type: String,
     default: 'Faro user',
   },
-  refreshing: {
-    type: Boolean,
-    default: false,
-  },
 })
 
-defineEmits(['refresh', 'open-login', 'logout'])
+defineEmits(['open-login', 'logout'])
 </script>
 
 <style scoped>

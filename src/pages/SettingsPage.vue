@@ -9,7 +9,6 @@
               Preferences and account controls for portable Nostr publishing.
             </p>
           </div>
-          <q-btn flat round icon="home" aria-label="Home" to="/" />
         </div>
 
         <q-banner v-if="message" rounded dense class="faro-warning q-mb-md">

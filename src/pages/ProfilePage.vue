@@ -37,7 +37,6 @@
             </div>
           </div>
           <div class="row q-gutter-sm">
-            <q-btn flat round icon="home" aria-label="Home" to="/" />
             <q-btn
               v-if="isOwnProfile"
               unelevated
@@ -56,15 +55,7 @@
               @click="logout"
             />
             <q-btn
-              v-if="isOwnProfile"
-              flat
-              no-caps
-              icon="settings"
-              label="Settings"
-              to="/settings"
-            />
-            <q-btn
-              v-else-if="!identity"
+              v-if="!identity"
               unelevated
               color="primary"
               no-caps
@@ -72,7 +63,7 @@
               to="/?signin=1"
             />
             <q-btn
-              v-else
+              v-else-if="!isOwnProfile"
               unelevated
               no-caps
               :label="isFollowing ? 'Unfollow' : 'Follow on Nostr'"

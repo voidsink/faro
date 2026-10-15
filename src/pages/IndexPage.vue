@@ -1,18 +1,6 @@
 <template>
   <q-page class="faro-page">
     <div class="faro-page-inner">
-      <app-top-bar
-        v-if="identity || !anonymousNoticeOpen"
-        :identity="identity"
-        :active-profile="activeProfile"
-        :display-name="displayName"
-        :refreshing="refreshing"
-        class="q-mb-md"
-        @refresh="refreshFeed"
-        @open-login="loginDialogOpen = true"
-        @logout="logout"
-      />
-
       <login-dialog
         v-model="loginDialogOpen"
         :has-nip07="hasNip07"
@@ -139,7 +127,6 @@ import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { decode } from 'nostr-tools/nip19'
-import AppTopBar from 'components/AppTopBar.vue'
 import AnonymousFeedDialog from 'components/AnonymousFeedDialog.vue'
 import LoginDialog from 'components/auth/LoginDialog.vue'
 import InsightsPanel from 'components/InsightsPanel.vue'
@@ -234,10 +221,6 @@ function search() {
 function followPeopleInstead() {
   anonymousNoticeOpen.value = false
   loginDialogOpen.value = true
-}
-
-function logout() {
-  session.logout()
 }
 
 async function loginWithNip07() {

@@ -108,8 +108,7 @@ h6,
   padding: 20px 12px 42px;
 }
 
-:focus-visible,
-.q-btn:focus-visible {
+:focus-visible:not(.q-field__native):not([tabindex='-1']) {
   outline: 2px solid var(--faro-link) !important;
   outline-offset: 3px;
 }
