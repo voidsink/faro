@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   DEFAULT_RELAYS,
+  buildPictureEvent,
   buildVisualFeedFilters,
   buildReactionFilter,
   buildReplyFilter,
@@ -104,14 +105,14 @@ test('buildVisualFeedFilters fetches followed authors and followed hashtags as O
 
   assert.equal(filters.length, 3)
   assert.deepEqual(filters[0], {
-    kinds: [1],
+    kinds: [1, 20, 21, 22],
     limit: 48,
     since: 10,
     until: 20,
     authors: [author],
   })
   assert.deepEqual(filters[1], {
-    kinds: [1],
+    kinds: [1, 20, 21, 22],
     limit: 48,
     since: 10,
     until: 20,
@@ -281,4 +282,28 @@ test('extractVisualUrls ignores non-visual urls', () => {
   const { images, videos } = extractVisualUrls(event)
   assert.deepEqual(images, [])
   assert.deepEqual(videos, [])
+})
+
+test('buildPictureEvent emits a NIP-68 kind 20 with imeta and no url in content', () => {
+  const sha256 = 'a'.repeat(64)
+  const event = buildPictureEvent({
+    caption: 'Sunset over the harbour #peniche',
+    mediaUrl: 'https://cdn.example/photo.jpg',
+    media: { mimeType: 'image/jpeg', dimensions: '1200x800', sha256 },
+  })
+
+  assert.equal(event.kind, 20)
+  assert.equal(event.content, 'Sunset over the harbour #peniche')
+  assert.ok(!event.content.includes('cdn.example'), 'image url must not leak into content')
+  assert.deepEqual(event.tags[0], [
+    'imeta',
+    'url https://cdn.example/photo.jpg',
+    'm image/jpeg',
+    'dim 1200x800',
+    `x ${sha256}`,
+  ])
+  assert.deepEqual(
+    event.tags.find((tag) => tag[0] === 't'),
+    ['t', 'peniche'],
+  )
 })

@@ -12,6 +12,8 @@ export const FOLLOWED_HASHTAGS_STORAGE_KEY = 'faro-followed-hashtags'
 
 const DEFAULT_TIMEOUT_MS = 8000
 const MAX_VISUAL_EVENTS = 80
+// Feed reads stay wide: 1 = short text, 20 = NIP-68 picture, 21/22 = NIP-71 video.
+const VISUAL_KINDS = [1, 20, 21, 22]
 const IMAGE_EXTENSIONS = '(?:jpe?g|png|webp|gif)'
 const VIDEO_EXTENSIONS = '(?:mp4|webm|ogv|mov|m4v|mkv)'
 const URL_PATTERN = /https?:\/\/[^\s<>'"`]+/gi
@@ -273,7 +275,7 @@ export function subscribeVisualFeed(authors, options = {}) {
       pool.subscribe(
         relayUrls,
         {
-          kinds: [1],
+          kinds: VISUAL_KINDS,
           ...filter,
           since: options.since || nowSeconds(),
         },
@@ -397,7 +399,7 @@ export function buildVisualFeedFilters(authors, options = {}) {
   const requestedVisualLimit = options.limit || MAX_VISUAL_EVENTS
   const perChunkLimit = Math.max(options.filterLimit || requestedVisualLimit * 4, 20)
   const baseFilter = () => ({
-    kinds: [1],
+    kinds: VISUAL_KINDS,
     limit: perChunkLimit,
     since: options.since,
     until: options.until || nowSeconds(),
@@ -456,22 +458,25 @@ export async function fetchVisualFeed(authors, options = {}) {
   }
 }
 
-export function buildMediaPostEvent({ caption = '', mediaUrl, media = {} } = {}) {
-  const cleanCaption = String(caption || '').trim()
-  const cleanUrl = String(mediaUrl || '').trim()
-  const content = [cleanCaption, cleanUrl].filter(Boolean).join(' ')
-  const tags = []
+// NIP-68 kind 20: picture-first post. The image lives in an `imeta` tag (NIP-92);
+// `.content` carries only the description, never the URL.
+export function buildPictureEvent({ caption = '', mediaUrl, media = {} } = {}) {
+  const content = String(caption || '').trim()
+  const imeta = ['imeta']
+  if (mediaUrl) imeta.push(`url ${String(mediaUrl).trim()}`)
+  if (media.mimeType) imeta.push(`m ${media.mimeType}`)
+  if (media.dimensions) imeta.push(`dim ${media.dimensions}`)
+  if (media.sha256) imeta.push(`x ${media.sha256}`)
+  // ponytail: assumes upload metadata is present — NIP-92 requires url plus at least
+  // one other field, and the Blossom path always supplies m + x.
 
-  if (cleanUrl) tags.push(['url', cleanUrl])
-  if (media.sha256) tags.push(['x', media.sha256])
-  if (media.mimeType) tags.push(['m', media.mimeType])
-  if (media.dimensions) tags.push(['dim', media.dimensions])
-  for (const hashtag of hashtagsFromText(cleanCaption)) {
+  const tags = imeta.length > 1 ? [imeta] : []
+  for (const hashtag of hashtagsFromText(content)) {
     tags.push(['t', hashtag])
   }
 
   return {
-    kind: 1,
+    kind: 20,
     content,
     tags,
   }
@@ -545,7 +550,7 @@ export async function publishReply(rootEvent, content, options = {}) {
 }
 
 export async function publishMediaPost({ caption, mediaUrl, media } = {}, options = {}) {
-  return signAndPublish(buildMediaPostEvent({ caption, mediaUrl, media }), options)
+  return signAndPublish(buildPictureEvent({ caption, mediaUrl, media }), options)
 }
 
 export function buildReactionFilter(eventIds, options = {}) {

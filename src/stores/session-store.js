@@ -561,7 +561,7 @@ export const useSessionStore = defineStore('session', {
         isVideo,
         ratio: media?.ratioKey || '1:1',
         createdAt: new Date((event.created_at || Date.now() / 1000) * 1000).toISOString(),
-        source: 'relay kind 1',
+        source: `relay kind ${event.kind ?? 1}`,
         nostr: {
           id: event.id,
           pubkey: event.pubkey || this.identity?.pubkey || '',
@@ -859,7 +859,7 @@ export const useSessionStore = defineStore('session', {
             isVideo: Boolean(firstVideo && !firstImage),
             ratio: '1:1',
             createdAt: new Date((event.created_at || Date.now() / 1000) * 1000).toISOString(),
-            source: 'relay kind 1',
+            source: `relay kind ${event.kind ?? 1}`,
             nostr: {
               id: event.id,
               pubkey: event.pubkey,
