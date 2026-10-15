@@ -17,20 +17,19 @@
             />
             <div>
               <h1 class="q-ma-none">{{ displayName }}</h1>
-              <p class="q-ma-none text-blue-grey-6">
+              <p class="q-ma-none faro-muted">
                 {{ profile.nip05 || shortKey(pubkey) || 'Sign in to view your profile' }}
               </p>
-              <p v-if="profile.about" class="bio q-mt-sm q-mb-none text-blue-grey-6">
+              <p v-if="profile.about" class="bio q-mt-sm q-mb-none faro-muted">
                 {{ profile.about }}
               </p>
               <div v-if="profileLinks.length" class="row q-gutter-xs q-mt-sm">
                 <q-chip
+                  class="faro-muted profile-chip"
                   v-for="item in profileLinks"
                   :key="item.label"
                   dense
                   outline
-                  color="blue-grey-6"
-                  class="profile-chip"
                   :icon="item.icon"
                   :label="item.label"
                 />
@@ -42,7 +41,7 @@
             <q-btn
               v-if="isOwnProfile"
               unelevated
-              color="dark"
+              color="primary"
               no-caps
               label="Edit profile"
               @click="openProfileEditor"
@@ -50,7 +49,7 @@
             <q-btn
               v-if="isOwnProfile"
               outline
-              color="dark"
+              color="accent"
               no-caps
               icon="logout"
               label="Logout"
@@ -67,7 +66,7 @@
             <q-btn
               v-else-if="!identity"
               unelevated
-              color="dark"
+              color="primary"
               no-caps
               label="Sign in"
               to="/?signin=1"
@@ -75,9 +74,9 @@
             <q-btn
               v-else
               unelevated
-              color="dark"
               no-caps
               :label="isFollowing ? 'Unfollow' : 'Follow on Nostr'"
+              :color="isFollowing ? 'accent' : 'primary'"
               :outline="isFollowing"
               :loading="session.publishingFollow"
               :disable="!identity || !pubkey"
@@ -92,12 +91,16 @@
           <q-form class="column q-gutter-md" @submit="saveProfile">
             <h2 class="text-h6 q-ma-none">Edit your public profile</h2>
             <q-input
+              class="faro-input"
+              color="accent"
               v-model="profileDraft.display_name"
               outlined
               label="Display name"
               maxlength="80"
             />
             <q-input
+              class="faro-input"
+              color="accent"
               v-model="profileDraft.about"
               outlined
               type="textarea"
@@ -105,9 +108,23 @@
               label="About you"
               maxlength="1000"
             />
-            <q-input v-model="profileDraft.picture" outlined type="url" label="Avatar image URL" />
-            <q-input v-model="profileDraft.banner" outlined type="url" label="Cover image URL" />
-            <p class="text-caption text-blue-grey-6 q-ma-none">
+            <q-input
+              class="faro-input"
+              color="accent"
+              v-model="profileDraft.picture"
+              outlined
+              type="url"
+              label="Avatar image URL"
+            />
+            <q-input
+              class="faro-input"
+              color="accent"
+              v-model="profileDraft.banner"
+              outlined
+              type="url"
+              label="Cover image URL"
+            />
+            <p class="text-caption faro-muted q-ma-none">
               These details are public and shared with other Nostr apps.
             </p>
             <div class="row justify-end q-gutter-sm">
@@ -115,7 +132,7 @@
               <q-btn
                 unelevated
                 no-caps
-                color="dark"
+                color="primary"
                 label="Save profile"
                 type="submit"
                 :loading="session.savingProfile"
@@ -166,7 +183,7 @@
         </button>
       </div>
 
-      <p v-if="profileError && posts.length" class="text-caption text-negative q-mt-sm q-mb-none">
+      <p v-if="profileError && posts.length" class="text-caption faro-danger q-mt-sm q-mb-none">
         {{ profileError }}
       </p>
 
@@ -174,7 +191,7 @@
         v-if="!posts.length"
         flat
         bordered
-        class="faro-surface column flex-center text-blue-grey-6 q-gutter-sm q-pa-xl q-mt-md"
+        class="faro-surface column flex-center faro-muted q-gutter-sm q-pa-xl q-mt-md"
       >
         <q-icon name="photo_camera" size="36px" />
         <p class="q-ma-none">
@@ -182,7 +199,7 @@
             profileLoading ? 'Fetching profile photos from Nostr…' : 'No posted photos found yet.'
           }}
         </p>
-        <p v-if="profileError" class="q-ma-none text-caption text-negative">{{ profileError }}</p>
+        <p v-if="profileError" class="q-ma-none text-caption faro-danger">{{ profileError }}</p>
       </q-card>
     </div>
   </q-page>
@@ -397,9 +414,9 @@ h1 {
   display: block;
   padding: 0;
   overflow: hidden;
-  background: white;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 18px;
+  background: var(--faro-surface-bg);
+  border: 1px solid var(--faro-surface-border);
+  border-radius: var(--faro-radius-md);
   cursor: pointer;
 }
 
@@ -419,11 +436,11 @@ h1 {
   top: 8px;
   right: 8px;
   padding: 3px 7px;
-  color: white;
+  color: var(--faro-media-badge-ink);
   font-size: 0.75rem;
   font-weight: 800;
-  background: rgba(15, 23, 42, 0.58);
-  border-radius: 999px;
+  background: var(--faro-media-badge-bg);
+  border-radius: var(--faro-radius-sm);
 }
 
 @media (max-width: 700px) {
@@ -432,7 +449,7 @@ h1 {
   }
 
   .photo-tile {
-    border-radius: 10px;
+    border-radius: var(--faro-radius-sm);
   }
 }
 </style>

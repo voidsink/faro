@@ -1,14 +1,13 @@
 <template>
   <q-card flat bordered class="faro-surface overflow-hidden" data-testid="profile-card">
-    <div class="profile-cover bg-blue-grey-2 relative-position">
+    <div class="profile-cover faro-muted-surface">
       <q-img
         v-if="activeProfile.banner"
         :src="activeProfile.banner"
         alt="Profile cover"
-        ratio="3.5"
-        class="profile-cover-image"
+        fit="cover"
+        class="fit"
       />
-      <div v-else class="profile-cover-gradient full-width full-height" aria-hidden="true" />
     </div>
 
     <div class="relative-position q-px-md q-pb-md">
@@ -19,7 +18,7 @@
           :pubkey="identity?.pubkey"
           :picture="activeProfile.picture"
           button
-          class="profile-avatar bg-white"
+          class="profile-avatar faro-surface-bg"
         />
       </div>
 
@@ -27,7 +26,7 @@
         <q-item-label class="text-h6 text-weight-bold line-height-tight">
           {{ identity ? displayName : 'Not logged in' }}
         </q-item-label>
-        <q-item-label caption class="text-blue-grey-6">
+        <q-item-label caption class="faro-muted">
           {{ identity ? profileSubtitle : 'Connect a signer to post.' }}
         </q-item-label>
       </div>
@@ -35,35 +34,28 @@
       <div class="row items-center q-col-gutter-md q-mt-md">
         <div class="col-auto text-center">
           <div class="text-weight-bold text-body2">{{ followingCount }}</div>
-          <div class="text-caption text-blue-grey-6">Following</div>
+          <div class="text-caption faro-muted">Following</div>
         </div>
         <div class="col-auto text-center">
           <div class="text-weight-bold text-body2">{{ postsCount }}</div>
-          <div class="text-caption text-blue-grey-6">Posts</div>
+          <div class="text-caption faro-muted">Posts</div>
         </div>
         <div class="col-auto text-center">
           <div class="text-weight-bold text-body2">{{ relaysCount }}</div>
-          <div class="text-caption text-blue-grey-6">Relays</div>
+          <div class="text-caption faro-muted">Relays</div>
         </div>
         <div class="col-auto text-center">
           <div class="text-weight-bold text-body2">{{ hashtagsCount }}</div>
-          <div class="text-caption text-blue-grey-6">Tags</div>
+          <div class="text-caption faro-muted">Tags</div>
         </div>
       </div>
 
       <div class="column q-mt-md q-gutter-sm">
-        <q-badge
-          color="grey-2"
-          text-color="dark"
-          rounded
-          class="self-start text-weight-medium"
-          :label="authLabel"
-        />
+        <q-badge outline class="self-start text-weight-medium faro-muted" :label="authLabel" />
         <q-btn
           v-if="!identity"
           unelevated
-          rounded
-          color="dark"
+          color="primary"
           no-caps
           label="Sign in"
           data-testid="open-login"
@@ -72,8 +64,7 @@
         <q-btn
           v-else
           outline
-          rounded
-          color="dark"
+          color="accent"
           no-caps
           icon="logout"
           label="Logout"
@@ -137,21 +128,6 @@ defineEmits(['open-login', 'logout'])
 .profile-cover {
   height: 110px;
   min-height: 110px;
-}
-
-.profile-cover-image :deep(.q-img__image) {
-  background-size: cover;
-}
-
-.profile-cover-gradient {
-  background: #f9da7d;
-  background: linear-gradient(
-    45deg,
-    rgba(249, 218, 125, 1) 0%,
-    rgba(239, 82, 51, 1) 33%,
-    rgba(243, 28, 165, 1) 66%,
-    rgba(89, 44, 207, 1) 100%
-  );
 }
 
 .profile-avatar-wrap {

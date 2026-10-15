@@ -2,10 +2,12 @@
   <q-dialog :model-value="modelValue" @update:model-value="handleDialogModelUpdate">
     <q-card class="login-card faro-surface">
       <q-card-section class="login-header row items-start no-wrap">
-        <div class="login-mark column flex-center">F</div>
+        <q-avatar rounded color="primary" text-color="white" size="48px" class="text-weight-bold"
+          >F</q-avatar
+        >
         <div class="col login-heading-copy">
           <div class="text-h6 text-weight-bold">Sign in to Faro</div>
-          <div class="text-body2 text-blue-grey-7">
+          <div class="text-body2 faro-muted">
             Choose the safest login method for how you use Nostr.
           </div>
         </div>
@@ -24,7 +26,7 @@
         <div class="login-option-block">
           <q-btn
             unelevated
-            color="dark"
+            color="primary"
             no-caps
             align="left"
             class="login-option"
@@ -43,7 +45,7 @@
         <div class="login-option-block">
           <q-btn
             outline
-            color="dark"
+            color="accent"
             no-caps
             align="left"
             class="login-option"
@@ -58,7 +60,7 @@
         <div class="login-option-block">
           <q-btn
             outline
-            color="dark"
+            color="accent"
             no-caps
             align="left"
             class="login-option"
@@ -79,6 +81,8 @@
         >
           <div class="login-more-content column q-gutter-md">
             <q-input
+              class="faro-input"
+              color="accent"
               v-model="bunkerValue"
               outlined
               dense
@@ -89,7 +93,7 @@
                 <q-btn
                   dense
                   flat
-                  color="dark"
+                  color="accent"
                   label="Connect"
                   :loading="bunkerLoading"
                   :disable="!bunkerValue.trim()"
@@ -98,7 +102,7 @@
               </template>
             </q-input>
 
-            <q-card flat bordered class="nostr-connect-card q-pa-md">
+            <q-card flat bordered class="faro-surface q-pa-md">
               <div class="row items-start q-col-gutter-md">
                 <div class="col-12 col-sm">
                   <div class="text-weight-bold">Connect by QR</div>
@@ -109,7 +113,7 @@
                   <div class="row q-gutter-sm q-mt-md">
                     <q-btn
                       unelevated
-                      color="dark"
+                      color="primary"
                       no-caps
                       icon="qr_code"
                       label="Generate QR & listen"
@@ -119,7 +123,7 @@
                     <q-btn
                       v-if="nostrConnect.abortController"
                       flat
-                      color="negative"
+                      class="faro-danger"
                       no-caps
                       icon="close"
                       label="Cancel"
@@ -136,26 +140,27 @@
                     alt="Nostr Connect QR code"
                     class="nostr-connect-qr"
                   />
-                  <div class="text-caption text-blue-grey-6 text-weight-bold">
+                  <div class="text-caption faro-muted text-weight-bold">
                     Waiting for signer approval…
                   </div>
                 </div>
               </div>
               <q-input
+                color="accent"
                 v-if="nostrConnect.uri"
                 :model-value="nostrConnect.uri"
                 readonly
                 autogrow
                 dense
                 outlined
-                class="q-mt-md nostr-connect-uri"
+                class="faro-input q-mt-md nostr-connect-uri"
                 label="nostrconnect:// request"
               />
               <q-btn
                 v-if="nostrConnect.uri"
                 flat
                 dense
-                color="dark"
+                color="accent"
                 no-caps
                 icon="content_copy"
                 label="Copy connection string"
@@ -164,11 +169,13 @@
               />
             </q-card>
 
-            <q-banner rounded dense class="bg-red-1 text-red-10">
+            <q-banner rounded dense class="faro-warning">
               Importing an nsec gives Faro direct access to your private key. Prefer Google, browser
               signer, or bunker if possible. Use a burner key unless you understand the risk.
             </q-banner>
             <q-input
+              class="faro-input"
+              color="accent"
               v-model="nsecValue"
               outlined
               dense
@@ -190,7 +197,7 @@
                 <q-btn
                   dense
                   flat
-                  color="negative"
+                  class="faro-danger"
                   label="Import"
                   :disable="!nsecValue.trim() || bunkerLoading"
                   @click="$emit('import-nsec', nsecValue)"
@@ -307,7 +314,6 @@ async function copyNostrConnect() {
 <style scoped>
 .login-card {
   width: min(92vw, 560px);
-  border-radius: 28px;
 }
 
 .login-header {
@@ -317,17 +323,6 @@ async function copyNostrConnect() {
 
 .login-heading-copy {
   padding-top: 3px;
-}
-
-.login-mark {
-  width: 52px;
-  height: 52px;
-  border-radius: 18px;
-  color: white;
-  background: linear-gradient(135deg, #ff7a59, #9b5cff);
-  font-family: var(--faro-font-heading);
-  font-size: 1.45rem;
-  font-weight: 900;
 }
 
 .login-options {
@@ -344,14 +339,14 @@ async function copyNostrConnect() {
 .login-option {
   width: 100%;
   min-height: 52px;
-  border-radius: 17px;
+  border-radius: var(--faro-radius-sm);
   padding: 0 16px;
 }
 
 .option-caption {
   max-width: 420px;
   margin-left: 50px;
-  color: #64748b;
+  color: var(--faro-muted);
   font-size: 0.82rem;
   line-height: 1.35;
 }
@@ -360,15 +355,10 @@ async function copyNostrConnect() {
   margin-left: 0;
 }
 
-.nostr-connect-card {
-  border-radius: 18px;
-  border-color: rgba(20, 24, 28, 0.08);
-}
-
 .nostr-connect-qr {
   width: 160px;
   height: 160px;
-  border-radius: 14px;
+  border-radius: var(--faro-radius-sm);
 }
 
 .nostr-connect-uri :deep(textarea) {
@@ -383,6 +373,6 @@ async function copyNostrConnect() {
 :deep(.login-more-header) {
   min-height: 48px;
   padding: 0 4px;
-  border-radius: 16px;
+  border-radius: var(--faro-radius-sm);
 }
 </style>

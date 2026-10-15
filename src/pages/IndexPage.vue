@@ -33,29 +33,29 @@
 
       <q-form class="q-mb-md" @submit="search">
         <q-input
+          color="accent"
           v-model="searchTerm"
           outlined
-          rounded
           dense
           label="Find a person or topic"
           placeholder="npub1… or #photography"
-          class="faro-surface"
+          class="faro-input faro-surface feed-search"
         >
           <template #append>
             <q-btn flat round icon="search" type="submit" aria-label="Search people or hashtags" />
           </template>
         </q-input>
       </q-form>
-      <div class="row items-center q-gutter-sm q-mb-md">
-        <span class="text-caption text-blue-grey-6">Explore topics</span>
+      <div class="row items-center q-gutter-sm q-mb-lg">
+        <span class="text-caption faro-muted">Explore topics</span>
         <q-btn
           v-for="tag in ['photography', 'nostr', 'art']"
           :key="tag"
-          outline
-          rounded
+          flat
           dense
+          class="topic-chip"
           no-caps
-          color="dark"
+          color="accent"
           :label="`#${tag}`"
           :to="`/tag/${tag}`"
         />
@@ -124,7 +124,7 @@
       <q-page-sticky v-if="showScrollTop" class="gt-sm" position="bottom-right" :offset="[18, 18]">
         <q-btn
           fab-mini
-          color="dark"
+          color="primary"
           icon="keyboard_arrow_up"
           aria-label="Back to top"
           @click="scrollToTop"
@@ -277,6 +277,13 @@ async function refreshFeed(done) {
 </script>
 
 <style scoped>
+.topic-chip {
+  background: var(--faro-accent-soft);
+}
+.feed-search {
+  box-shadow: none;
+}
+
 .right-rail {
   position: sticky;
   top: 16px;

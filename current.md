@@ -1,25 +1,24 @@
 # Faro — current state (2026-10-15)
 
-## Delivery and constraints
+## Theme refresh
 
-- First UI/UX readiness pass completed on `feat/faro-review`, for local merge into `main` at the owner's request.
-- Both requested branches are included: `8974403` (NIP-68) is an ancestor of `7b3e85b` (UI polish).
-- Do not push. The owner will push `main` when ready; that triggers Netlify deployment.
-- Use normal branch prefixes (`feat/`, `fix/`, `chore/`); never `codex/`.
+- Implemented on `feat/neutral-purple-themes`. Owner explicitly requested commit, merge into `main`, and push; this supersedes the earlier no-push constraint. A main push triggers Netlify.
+- Quasar Dark now applies a persisted System/Light/Dark preference from Settings. No new dependencies.
+- Brand/neutral colors live in `src/css/quasar.variables.scss`; semantic light/dark tokens live in `src/css/app.scss`.
+- Removed peach/brown shell colors, decorative gradients/default rainbow banner, global Quasar color overrides, unused chart CSS, and redundant carousel/dialog markup. User-provided imagery is preserved.
+- Consistent corners, borders, typography, purple actions/links/focus, and neutral surfaces cover feed, profiles, stories, composer, settings, login and onboarding.
 
-## Completed
+## Validation and delivery
 
-- Working mobile routes; person/topic lookup; shareable post pages; working grid navigation.
-- Real Nostr follow/unfollow and profile editing, preserving existing metadata.
-- Session-only key backup acknowledgement; composer sign-in and unsaved-draft protection; rejected comments retain their text.
-- Global-feed reads require consent, retained during navigation; loading/error/retry states and pagination fixes.
-- NIP-68 title/media tags and extensionless media support; content warnings hide tagged media in feeds and grids.
-- Mobile settings layout, zoom/keyboard accessibility, honest controls, MIT license and contributor/setup documentation.
-- One scoped Astra medium review used; no further Astra work requested.
+- Lint, unit suite (six files), production build and all 22 Playwright checks pass across light and dark modes.
+- Checks cover existing social/publishing flows, theme persistence/system changes, keyboard focus, carousel state, text contrast >= 4.5:1 and focus/control boundaries >= 3:1. Test writes/uploads are mocked.
+- Matching mobile/desktop screenshots cover feed, profile, composer, settings, login and onboarding. Artifacts: `/home/talvasconcelos/.codex/visualizations/2026/10/15/01a13f4b-0d72-76b2-b88c-044d7d7613cd/faro-themes/screenshots.md`.
+- Live auth/upload interoperability and Netlify deployment status were not re-tested by the theme checks.
+- Stop condition: reviewed screenshots, verified commit merged/pushed to main, clean working tree, and upstream SHA matches local main.
 
-## Validation and next checkpoint
+## Project constraints and known limits
 
-- Lint, unit suite (six files), production build and eight mocked Playwright flows pass. Desktop feed and mobile feed/settings screenshots inspected.
-- Browser tests intercept relay writes and media uploads. Live Google/bunker/browser-signer interoperability and real uploads/payments were not exercised.
-- Next: owner tests real account/signers/media servers before pushing. Zaps, bookmarks, notifications, DMs and advanced moderation remain unimplemented; publishing currently uploads one photo per post. Public feeds remain unmoderated, and content warnings depend on author tagging.
-- Stop condition: verified local commit and merge, clean working tree, both original feature commits reachable from `main`, no push.
+- Use `feat/`, `fix/` or `chore/` branch prefixes; never `codex/`.
+- NIP-68 `8974403`, UI polish `7b3e85b`, and core-flow review `54bde56` remain included.
+- One scoped Astra medium review was used previously; do not repeat without new authorization.
+- Zaps, bookmarks, notifications, DMs and advanced moderation remain unimplemented. Public feeds are unmoderated; content warnings depend on author tagging. Publishing uploads one photo per post.

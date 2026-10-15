@@ -1,0 +1,1 @@
+`landscape.jpg` is a local, offline-only UI test fixture from [Unsplash](https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=900&q=80), used under the [Unsplash License](https://unsplash.com/license). It is not bundled into Faro or presented as a user post outside tests.

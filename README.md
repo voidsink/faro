@@ -11,6 +11,7 @@ A photo-first social app built on Nostr. Bring your identity and follows, publis
 - Browser signers (NIP-07), remote signers (NIP-46 / QR), Pomegranate Google sign-in, and session-only private keys.
 - Real Nostr follows, hashtag feeds, public profile editing, likes and comments.
 - Photo grids, multi-image posts, shareable post URLs and mobile navigation.
+- Neutral light and dark themes with a saved System/Light/Dark choice in Settings.
 - Browser-only local drafts, configurable relays and media servers.
 
 Faro is early software. Zaps, bookmarks, notifications, direct messages, and advanced moderation are not implemented. Profile images currently use URLs; the composer uploads one photo per post. Nostr feeds are public and unmoderated. Content warnings are respected when authors supply them; untagged content can still appear.
@@ -43,7 +44,7 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-If Chromium is already installed elsewhere, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable. The tests intercept relay traffic and media uploads; they never publish to real relays. They cover mobile navigation and consent, post detail, rejected comments, following, profile editing, key backup, composing, publishing and relay outages.
+If Chromium is already installed elsewhere, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable. The tests intercept relay traffic and media uploads; they never publish to real relays. They run in both light and dark modes and cover mobile navigation and consent, post detail, rejected comments, following, profile editing, key backup, composing, publishing and relay outages. Theme checks verify preference persistence, system changes, keyboard focus, text/control contrast, and matching mobile/desktop screenshots. The landscape photo is an offline test fixture, not bundled app content.
 
 ## Your keys and data
 

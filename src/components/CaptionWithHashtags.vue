@@ -4,7 +4,7 @@
       <router-link
         v-if="part.tag"
         :to="`/tag/${encodeURIComponent(part.tag)}`"
-        class="hashtag-link text-primary text-weight-medium"
+        class="hashtag-link faro-link text-weight-medium"
         @click.stop
       >
         #{{ part.label }}

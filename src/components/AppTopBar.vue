@@ -2,9 +2,7 @@
   <q-card flat bordered class="faro-surface q-mb-md">
     <q-toolbar class="toolbar q-px-md">
       <q-btn flat round dense aria-label="Home" to="/">
-        <q-avatar>
-          <img src="~/assets/faro.svg" alt="Faro" />
-        </q-avatar>
+        <span class="faro-logo" aria-hidden="true" />
       </q-btn>
       <q-toolbar-title class="brand-title q-pl-xs">faro</q-toolbar-title>
 
@@ -18,12 +16,12 @@
             <q-avatar
               v-else
               size="32px"
-              color="grey-6"
+              color="primary"
               text-color="white"
               :icon="!activeProfile?.picture ? 'person' : null"
             >
             </q-avatar>
-            <q-menu class="bg-white text-black" auto-close>
+            <q-menu class="faro-menu" auto-close>
               <q-list style="min-width: 100px">
                 <q-item clickable v-close-popup to="/profile" aria-label="Profile">
                   <q-item-section>Profile</q-item-section>
@@ -41,9 +39,8 @@
         <q-btn
           v-else
           unelevated
-          rounded
           no-caps
-          color="dark"
+          color="primary"
           icon="login"
           label="Sign in"
           aria-label="Sign in"
@@ -78,13 +75,19 @@ defineEmits(['refresh', 'open-login', 'logout'])
 </script>
 
 <style scoped>
+.faro-logo {
+  width: 32px;
+  height: 32px;
+  background: var(--q-primary);
+  mask: url('../assets/faro.svg') center / contain no-repeat;
+}
+
 .toolbar {
-  min-height: 56px;
+  min-height: 64px;
 }
 
 .brand-title {
-  font-size: 1.5rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: 1.65rem;
+  font-weight: 700;
 }
 </style>

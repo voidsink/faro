@@ -1,25 +1,33 @@
-// Quasar Sass (& SCSS) Variables
-// --------------------------------------------------
-// To customize the look and feel of this app, you can override
-// the Sass/SCSS variables found in Quasar's source Sass/SCSS files.
+// Brand and neutral palette. Theme roles live in app.scss.
+$primary: #7c3aed;
+$secondary: #5b21b6;
+$accent: #6d28d9;
+$dark: #1c1c20;
+$dark-page: #101012;
+$positive: #15803d;
+$negative: #b91c1c;
+$info: #2563eb;
+$warning: #ca8a04;
 
-// Check documentation for full list of Quasar variables
+$faro-canvas-light: #f7f7f8;
+$faro-surface-light: #ffffff;
+$faro-muted-surface-light: #efeff2;
+$faro-ink-light: #17171b;
+$faro-muted-light: #62626e;
+$faro-border-light: #d8d8e0;
+$faro-control-border-light: #858592;
+$faro-purple-soft-light: #eee7fc;
 
-// Your own variables (that are declared here) and Quasar's own
-// ones will be available out of the box in your .vue/.scss/.sass files
+$faro-surface-dark: $dark;
+$faro-muted-surface-dark: #27272e;
+$faro-ink-dark: #f4f4f6;
+$faro-muted-dark: #b0b0bd;
+$faro-border-dark: #44444f;
+$faro-control-border-dark: #777784;
+$faro-link-dark: #c4afff;
+$faro-purple-soft-dark: #302342;
+$faro-danger-dark: #fca5a5;
 
-// It's highly recommended to change the default colors
-// to match your app's branding.
-// Tip: Use the "Theme Builder" on Quasar's documentation website.
-
-$primary: #8a4c29;
-$secondary: #26a69a;
-$accent: #f04b79;
-
-$dark: #241b18;
-$dark-page: #121212;
-
-$positive: #21ba45;
-$negative: #c10015;
-$info: #31ccec;
-$warning: #f2c037;
+$generic-border-radius: 8px;
+$button-border-radius: 8px;
+$input-border-radius: 8px;

@@ -1,14 +1,14 @@
 <template>
   <section class="visual-feed column q-gutter-y-sm full-width">
     <div class="row items-center justify-end q-col-gutter-sm q-mx-sm">
-      <h2 class="text-h6 text-weight-bolder q-ma-none q-mr-auto">{{ title }}</h2>
+      <h2 class="text-h5 text-weight-bold q-ma-none q-mr-auto">{{ title }}</h2>
       <div class="col-auto row items-center q-col-gutter-sm">
         <div class="col-auto" v-if="!isMobile">
           <q-checkbox
             v-model="twoColumnFeedProxy"
             checked-icon="calendar_view_day"
             unchecked-icon="dashboard"
-            color="dark"
+            color="accent"
             class="layout-toggle"
             keep-color
             dense
@@ -21,7 +21,7 @@
             flat
             dense
             round
-            color="dark"
+            color="accent"
             icon="refresh"
             :loading="refreshing"
             aria-label="Refresh Nostr feed"
@@ -47,15 +47,10 @@
       aria-label="Loading posts"
     >
       <q-skeleton height="320px" class="faro-surface" />
-      <p class="text-center text-blue-grey-6">Finding photos on Nostr…</p>
+      <p class="text-center faro-muted">Finding photos on Nostr…</p>
     </div>
 
-    <q-banner
-      v-if="pendingCount"
-      rounded
-      class="bg-white text-dark q-mt-sm"
-      style="border: 1px solid rgba(15, 23, 42, 0.08)"
-    >
+    <q-banner v-if="pendingCount" class="faro-warning q-mt-sm">
       <div class="row items-center justify-between q-gutter-sm">
         <div class="row items-center q-gutter-sm">
           <q-icon name="auto_awesome" color="primary" size="20px" />
@@ -65,10 +60,9 @@
         </div>
         <q-btn
           unelevated
-          rounded
           dense
           no-caps
-          color="dark"
+          color="primary"
           label="Show"
           @click="$emit('show-pending')"
         />
@@ -77,8 +71,8 @@
 
     <q-pull-to-refresh
       :disable="!isMobile"
-      color="primary"
-      bg-color="dark"
+      color="white"
+      bg-color="primary"
       scroll-target="body"
       class="feed-refresh full-width"
       @refresh="onPullRefresh"
@@ -91,7 +85,7 @@
         class="full-width"
       >
         <div
-          class="feed-grid q-mt-md"
+          class="feed-grid q-mt-sm"
           :class="twoColumnFeed ? 'masonry' : 'column q-gutter-y-md'"
           data-testid="feed-grid"
         >
@@ -108,7 +102,7 @@
           />
         </div>
 
-        <div v-if="!hasMore" class="text-center text-caption text-blue-grey-5 q-py-md">
+        <div v-if="!hasMore" class="text-center text-caption faro-muted q-py-md">
           Caught up for now.
         </div>
 
@@ -126,23 +120,22 @@
         class="faro-surface column flex-center text-center q-pa-xl q-mt-md q-gutter-md"
         data-testid="empty-feed"
       >
-        <q-avatar size="64px" color="blue-grey-1" text-color="blue-grey-5" icon="photo_library" />
+        <q-avatar size="64px" class="faro-muted-surface faro-muted" icon="photo_library" />
         <div>
           <p class="text-weight-bold text-body1 q-ma-none">No visuals yet</p>
-          <p class="text-caption text-blue-grey-6 q-ma-none q-mt-xs">
+          <p class="text-caption faro-muted q-ma-none q-mt-xs">
             Follow a person by their Nostr public key or explore a topic above to start your feed.
           </p>
         </div>
         <q-btn
           unelevated
-          rounded
-          color="dark"
+          color="primary"
           no-caps
           icon="add_photo_alternate"
           label="Create post"
           to="/new"
         />
-        <q-btn flat no-caps color="dark" label="Explore #photography" to="/tag/photography" />
+        <q-btn flat no-caps color="accent" label="Explore #photography" to="/tag/photography" />
       </q-card>
     </q-pull-to-refresh>
   </section>

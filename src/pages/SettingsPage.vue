@@ -5,7 +5,7 @@
         <div class="row items-center justify-between q-mb-lg">
           <div>
             <h1 class="q-ma-none">Settings</h1>
-            <p class="q-ma-none text-blue-grey-6">
+            <p class="q-ma-none faro-muted">
               Preferences and account controls for portable Nostr publishing.
             </p>
           </div>
@@ -18,27 +18,49 @@
 
         <q-list separator>
           <q-item class="settings-row">
+            <q-item-section avatar><q-icon name="contrast" /></q-item-section>
+            <q-item-section>
+              <q-item-label class="text-weight-bold">Appearance</q-item-label>
+              <q-item-label caption class="faro-muted"
+                >Follow your device or choose a theme for this browser.</q-item-label
+              >
+              <q-select
+                color="accent"
+                :model-value="theme.preference"
+                :options="themeOptions"
+                emit-value
+                map-options
+                outlined
+                dense
+                class="faro-input q-mt-sm"
+                label="Theme"
+                @update:model-value="theme.setPreference"
+              />
+            </q-item-section>
+          </q-item>
+          <q-item class="settings-row">
             <q-item-section avatar>
               <q-icon name="cloud_upload" />
             </q-item-section>
             <q-item-section>
               <q-item-label>Media storage</q-item-label>
-              <q-item-label caption>
+              <q-item-label caption class="faro-muted">
                 Your photos are uploaded to the first available server in this list. Use a server
                 that allows uploads from your browser.
               </q-item-label>
               <q-input
+                color="accent"
                 v-model="draftBlossomServers"
                 outlined
                 dense
                 autogrow
-                class="q-mt-sm relay-input"
+                class="faro-input q-mt-sm relay-input"
                 label="Blossom server URLs"
                 placeholder="https://cdn.nostrverse.net"
                 hint="One URL per line or separated by commas."
               />
               <div class="row q-gutter-xs q-mt-sm">
-                <q-btn-dropdown flat dense no-caps color="dark" label="Add default server">
+                <q-btn-dropdown flat dense no-caps color="accent" label="Add default server">
                   <q-list dense>
                     <q-item
                       v-for="server in defaultBlossomServers"
@@ -55,14 +77,14 @@
                   flat
                   dense
                   no-caps
-                  color="dark"
+                  color="accent"
                   label="Reset defaults"
                   @click="resetBlossomServers"
                 />
               </div>
             </q-item-section>
             <q-item-section side>
-              <q-btn unelevated dense no-caps color="dark" label="Save" @click="saveServers" />
+              <q-btn unelevated dense no-caps color="primary" label="Save" @click="saveServers" />
             </q-item-section>
           </q-item>
 
@@ -72,16 +94,17 @@
             </q-item-section>
             <q-item-section>
               <q-item-label>Relays</q-item-label>
-              <q-item-label caption>
+              <q-item-label caption class="faro-muted">
                 Used for profile, following, feed reads, and publishing. Faro falls back to defaults
                 if this is empty or invalid.
               </q-item-label>
               <q-input
+                color="accent"
                 v-model="draftRelays"
                 outlined
                 dense
                 autogrow
-                class="q-mt-sm relay-input"
+                class="faro-input q-mt-sm relay-input"
                 label="Relay URLs"
                 hint="One URL per line or separated by commas."
               />
@@ -90,7 +113,7 @@
                   flat
                   dense
                   no-caps
-                  color="dark"
+                  color="accent"
                   label="Reset defaults"
                   @click="resetRelays"
                 />
@@ -101,7 +124,7 @@
                 unelevated
                 dense
                 no-caps
-                color="dark"
+                color="primary"
                 label="Save"
                 @click="saveRelaySettings"
               />
@@ -114,16 +137,17 @@
             </q-item-section>
             <q-item-section>
               <q-item-label>Follow hashtags</q-item-label>
-              <q-item-label caption>
+              <q-item-label caption class="faro-muted">
                 Add topics like #bitcoin or photography. Faro mixes matching visual posts into your
                 feed alongside people you follow.
               </q-item-label>
               <q-input
+                color="accent"
                 v-model="draftHashtags"
                 outlined
                 dense
                 autogrow
-                class="q-mt-sm relay-input"
+                class="faro-input q-mt-sm relay-input"
                 label="Hashtags"
                 placeholder="#bitcoin\n#photography"
                 hint="One per line, comma, or space. # is optional."
@@ -135,7 +159,7 @@
                 unelevated
                 dense
                 no-caps
-                color="dark"
+                color="primary"
                 label="Save"
                 :disable="!session.identity"
                 @click="saveHashtagSettings"
@@ -146,7 +170,7 @@
           <q-item v-if="session.secretKey">
             <q-item-section>
               <q-item-label>Private key backup</q-item-label>
-              <q-item-label caption
+              <q-item-label caption class="faro-muted"
                 >Your key is kept for this session only. Back it up before reloading or signing
                 out.</q-item-label
               >
@@ -155,7 +179,7 @@
               ><q-btn
                 outline
                 no-caps
-                color="dark"
+                color="accent"
                 label="Back up key"
                 @click="session.keyBackupRequired = true"
             /></q-item-section>
@@ -170,7 +194,7 @@
             <q-item-section avatar><q-icon name="code" /></q-item-section>
             <q-item-section
               ><q-item-label>Faro is open source</q-item-label
-              ><q-item-label caption
+              ><q-item-label caption class="faro-muted"
                 >Read the code, report a bug, or contribute.</q-item-label
               ></q-item-section
             >
@@ -184,6 +208,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useThemeStore } from 'src/stores/theme-store'
 import { useSessionStore } from 'src/stores/session-store'
 import {
   DEFAULT_BLOSSOM_SERVERS,
@@ -194,6 +219,12 @@ import {
 import { DEFAULT_RELAYS, loadRelays, saveRelays } from 'src/services/nostrRelay'
 
 const session = useSessionStore()
+const theme = useThemeStore()
+const themeOptions = [
+  { label: 'System', value: 'system' },
+  { label: 'Light', value: 'light' },
+  { label: 'Dark', value: 'dark' },
+]
 const defaultBlossomServers = DEFAULT_BLOSSOM_SERVERS
 const draftBlossomServers = ref('')
 const draftRelays = ref('')

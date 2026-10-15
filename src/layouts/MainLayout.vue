@@ -6,17 +6,14 @@
 
     <key-backup-dialog />
 
-    <!-- Instagram-shaped nav: the primary destinations live at the bottom on phones.
-         lt-md is Quasar's responsive visibility class (xs/sm only), so desktop keeps
-         the right rail and no tab bar. -->
     <q-footer class="faro-tabbar lt-md">
       <q-tabs
         align="justify"
         dense
         no-caps
-        active-color="dark"
-        indicator-color="transparent"
-        class="text-blue-grey-6"
+        active-color="accent"
+        indicator-color="accent"
+        class="faro-muted"
       >
         <q-route-tab name="home" icon="home" label="Home" to="/" exact aria-label="Home" />
         <q-route-tab name="new" icon="add_box" label="Post" to="/new" aria-label="New post" />
@@ -44,17 +41,10 @@ import KeyBackupDialog from 'components/auth/KeyBackupDialog.vue'
 </script>
 
 <style scoped>
-.app-shell {
-  background:
-    radial-gradient(circle at 12% 0%, rgba(255, 128, 92, 0.2), transparent 28%),
-    linear-gradient(180deg, #fff8ef 0%, #f6eee8 46%, #f9f5f0 100%);
-  color: #241b18;
-}
-
 .faro-tabbar {
   border-top: 1px solid var(--faro-surface-border);
-  background: rgba(255, 253, 250, 0.94);
-  backdrop-filter: saturate(160%) blur(12px);
+  background: var(--faro-surface-bg);
+  color: var(--faro-ink);
   padding-bottom: env(safe-area-inset-bottom);
 }
 

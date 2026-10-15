@@ -7,7 +7,7 @@
         :pubkey="identity?.pubkey"
         :picture="activeProfile.picture"
       />
-      <span class="text-caption text-blue-grey-6">Your story</span>
+      <span class="text-caption faro-muted">Your story</span>
     </div>
 
     <div
@@ -21,7 +21,7 @@
         :pubkey="person.pubkey"
         :picture="person.picture"
       />
-      <span class="text-caption text-blue-grey-6">{{ person.name }}</span>
+      <span class="text-caption faro-muted">{{ person.name }}</span>
     </div>
   </q-card>
 </template>
@@ -61,11 +61,11 @@ defineProps({
 
 .story :deep(.q-avatar) {
   padding: 2px;
-  border: 2px solid #f04b79;
-  box-shadow: inset 0 0 0 3px #fff;
+  border: 2px solid var(--faro-link);
+  box-shadow: inset 0 0 0 3px var(--faro-surface-bg);
 }
 
 .your-story :deep(.q-avatar) {
-  border-color: #111;
+  border-color: var(--faro-surface-border);
 }
 </style>

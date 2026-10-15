@@ -1,17 +1,11 @@
 <template>
   <q-card flat bordered class="faro-surface column q-pa-md q-gutter-md">
-    <div class="row items-center justify-between">
-      <strong>Your feed</strong>
-    </div>
+    <h2 class="text-subtitle1 text-weight-bold q-ma-none">Your feed</h2>
 
-    <p class="text-blue-grey-6 text-caption">
+    <p class="faro-muted text-caption">
       {{ followingCount }} following · {{ relayPostsCount }} posts from Nostr ·
       {{ localPostsCount }} local drafts
     </p>
-
-    <!-- <div class="bars row items-end q-py-md q-pb-xs q-gutter-sm" aria-hidden="true">
-      <i v-for="height in barHeights" :key="height" class="col" :style="{ height: `${height}%` }" />
-    </div> -->
 
     <strong v-if="suggestedProfiles.length">People to discover</strong>
     <q-list class="q-mt-sm">
@@ -26,7 +20,7 @@
         </q-item-section>
         <q-item-section>
           <q-item-label class="text-weight-bold">{{ person.name }}</q-item-label>
-          <q-item-label caption>{{ shortKey(person.pubkey) }}</q-item-label>
+          <q-item-label caption class="faro-muted">{{ shortKey(person.pubkey) }}</q-item-label>
         </q-item-section>
         <q-item-section side>
           <q-btn
@@ -34,7 +28,7 @@
             flat
             dense
             no-caps
-            color="primary"
+            color="accent"
             label="Follow"
             :loading="publishingFollow"
             @click="$emit('follow', person.pubkey)"
@@ -44,7 +38,7 @@
             flat
             dense
             no-caps
-            color="primary"
+            color="accent"
             label="View"
             :to="`/profile/${person.pubkey}`"
           />
@@ -83,18 +77,4 @@ defineProps({
 })
 
 defineEmits(['follow'])
-
-// const barHeights = [42, 74, 28, 55, 82, 12, 50]
 </script>
-
-<style scoped>
-.bars {
-  height: 170px;
-}
-
-.bars i {
-  min-width: 18px;
-  border-radius: 8px 8px 0 0;
-  background: $primary;
-}
-</style>

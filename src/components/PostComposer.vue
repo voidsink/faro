@@ -14,7 +14,7 @@
           <q-item-label class="text-weight-bold">{{
             identity ? displayName : 'Create post'
           }}</q-item-label>
-          <q-item-label caption class="text-blue-grey-6">{{
+          <q-item-label caption class="faro-muted">{{
             identity ? 'Share a visual moment' : 'Login to unlock posting'
           }}</q-item-label>
         </q-item-section>
@@ -23,7 +23,7 @@
             flat
             dense
             round
-            color="blue-grey-6"
+            class="faro-muted"
             icon="delete_sweep"
             aria-label="Clear local posts"
             @click="$emit('clear-post-cache')"
@@ -35,7 +35,7 @@
     </q-card-section>
 
     <q-card-section>
-      <q-banner v-if="!identity" rounded class="bg-orange-1 text-brown-8 q-mb-md">
+      <q-banner v-if="!identity" rounded class="faro-warning q-mb-md">
         Sign in or create a local identity to publish visuals.
       </q-banner>
 
@@ -54,14 +54,14 @@
         data-testid="image-picker"
         @click="openImagePicker"
       >
-        <q-icon name="add_photo_alternate" size="42px" color="blue-grey-4" />
+        <q-icon name="add_photo_alternate" size="42px" class="faro-muted" />
         <div class="text-weight-medium text-body2 q-mt-sm">Add a photo</div>
-        <div class="text-caption text-blue-grey-6">Tap to choose an image</div>
+        <div class="text-caption faro-muted">Tap to choose an image</div>
       </div>
 
       <div
         v-else
-        class="overflow-hidden rounded-borders bg-grey-1 q-mx-auto q-mb-md"
+        class="overflow-hidden rounded-borders faro-muted-surface q-mx-auto q-mb-md"
         :style="previewFrameStyle"
       >
         <q-img :src="imagePreview" alt="Selected preview" fit="contain" class="full-height" />
@@ -71,12 +71,10 @@
         <q-btn-toggle
           :model-value="selectedRatio"
           unelevated
-          rounded
           dense
           no-caps
-          toggle-color="dark"
-          color="grey-2"
-          text-color="dark"
+          toggle-color="primary"
+          class="faro-text"
           :options="ratioOptions"
           aria-label="Image aspect ratio"
           @update:model-value="setRatio"
@@ -85,11 +83,12 @@
 
       <q-form @submit.prevent="$emit('publish-post')">
         <q-input
+          class="faro-input"
+          color="accent"
           :model-value="caption"
           type="textarea"
           autogrow
           outlined
-          rounded
           placeholder="Write a caption..."
           data-testid="caption-input"
           @update:model-value="$emit('update:caption', $event)"
@@ -97,8 +96,7 @@
 
         <q-btn
           unelevated
-          rounded
-          color="dark"
+          color="primary"
           class="full-width q-mt-md text-weight-bold"
           no-caps
           :disable="!canPost"
@@ -202,7 +200,7 @@ async function setRatio(ratio) {
 
 <style scoped>
 .upload-zone {
-  border: 1.5px dashed rgba(15, 23, 42, 0.16);
-  background: rgba(15, 23, 42, 0.02);
+  border: 1px dashed var(--faro-surface-border);
+  background: var(--faro-surface-muted);
 }
 </style>

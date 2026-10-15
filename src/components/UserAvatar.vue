@@ -1,20 +1,13 @@
 <template>
-  <q-btn
-    v-if="button"
-    round
-    unelevated
-    :color="buttonColor"
-    :to="profileHref"
-    class="user-avatar-button"
-  >
-    <q-avatar :size="size" :color="avatarColor" text-color="white" class="user-avatar">
+  <q-btn v-if="button" round flat :to="profileHref" class="user-avatar-button">
+    <q-avatar :size="size" color="primary" text-color="white" class="user-avatar">
       <q-img v-if="picture" :src="picture" :alt="alt" ratio="1" />
       <span v-else>{{ initials }}</span>
     </q-avatar>
   </q-btn>
 
   <component v-else :is="pubkey ? 'router-link' : 'div'" :to="profileHref" class="user-avatar-link">
-    <q-avatar :size="size" :color="avatarColor" text-color="white" class="user-avatar">
+    <q-avatar :size="size" color="primary" text-color="white" class="user-avatar">
       <q-img v-if="picture" :src="picture" :alt="alt" ratio="1" />
       <span v-else>{{ initials }}</span>
     </q-avatar>
@@ -46,10 +39,6 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  buttonColor: {
-    type: String,
-    default: 'white',
-  },
 })
 
 const alt = computed(() => props.name || 'Profile avatar')
@@ -72,14 +61,6 @@ const initials = computed(() => {
     .map((part) => part[0])
     .join('')
     .toUpperCase()
-})
-
-const avatarColor = computed(() => {
-  const palette = ['indigo-6', 'teal-6', 'deep-orange-5', 'purple-6', 'blue-grey-6', 'pink-6']
-  const value = String(props.pubkey || props.name || 'faro')
-    .split('')
-    .reduce((sum, char) => sum + char.charCodeAt(0), 0)
-  return palette[value % palette.length]
 })
 </script>
 

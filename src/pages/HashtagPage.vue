@@ -4,9 +4,9 @@
       <q-card flat bordered class="faro-surface tag-card overflow-hidden">
         <div class="row items-start justify-between q-gutter-md">
           <div>
-            <p class="q-ma-none text-blue-grey-6 text-weight-bold text-uppercase">Hashtag</p>
+            <p class="q-ma-none faro-muted text-weight-bold text-uppercase">Hashtag</p>
             <h1 class="q-ma-none">#{{ tag }}</h1>
-            <p class="q-mt-sm q-mb-none text-blue-grey-6">
+            <p class="q-mt-sm q-mb-none faro-muted">
               Visual Nostr posts tagged with <span class="text-weight-medium">#{{ tag }}</span
               >.
             </p>
@@ -15,7 +15,7 @@
             <q-btn flat round icon="home" aria-label="Home" to="/" />
             <q-btn
               unelevated
-              color="dark"
+              :color="isFollowing ? 'accent' : 'primary'"
               no-caps
               :outline="isFollowing"
               :disable="!identity || !tag"
@@ -69,7 +69,7 @@
         </button>
       </div>
 
-      <p v-if="error && posts.length" class="text-caption text-negative q-mt-sm q-mb-none">
+      <p v-if="error && posts.length" class="text-caption faro-danger q-mt-sm q-mb-none">
         {{ error }}
       </p>
 
@@ -77,7 +77,7 @@
         v-if="!posts.length"
         flat
         bordered
-        class="faro-surface column flex-center text-blue-grey-6 q-gutter-sm q-pa-xl q-mt-md"
+        class="faro-surface column flex-center faro-muted q-gutter-sm q-pa-xl q-mt-md"
       >
         <q-icon name="tag" size="36px" />
         <p class="q-ma-none">
@@ -85,7 +85,7 @@
             loading ? `Fetching #${tag} posts from Nostr…` : `No visual #${tag} posts found yet.`
           }}
         </p>
-        <p v-if="error" class="q-ma-none text-caption text-negative">{{ error }}</p>
+        <p v-if="error" class="q-ma-none text-caption faro-danger">{{ error }}</p>
       </q-card>
     </div>
   </q-page>
@@ -198,9 +198,9 @@ h1 {
   aspect-ratio: 1;
   padding: 0;
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--faro-radius-sm);
   overflow: hidden;
-  background: #eef2f5;
+  background: var(--faro-surface-muted);
   cursor: pointer;
 }
 
@@ -216,9 +216,9 @@ h1 {
   top: 8px;
   right: 8px;
   padding: 3px 7px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.62);
-  color: white;
+  border-radius: var(--faro-radius-sm);
+  background: var(--faro-media-badge-bg);
+  color: var(--faro-media-badge-ink);
   font-size: 0.75rem;
 }
 

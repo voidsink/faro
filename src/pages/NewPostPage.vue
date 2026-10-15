@@ -6,7 +6,7 @@
           <q-btn flat round icon="close" aria-label="Close composer" to="/" />
           <q-toolbar-title>
             <div class="page-title">New post</div>
-            <div class="text-caption text-blue-grey-6 text-weight-bold">
+            <div class="text-caption faro-muted text-weight-bold">
               Choose, frame, caption, publish.
             </div>
           </q-toolbar-title>
@@ -29,8 +29,8 @@
           animated
           keep-alive
           alternative-labels
-          color="dark"
-          active-color="dark"
+          color="accent"
+          active-color="accent"
           done-color="positive"
           :contracted="$q.screen.lt.sm"
           class="post-stepper"
@@ -41,13 +41,13 @@
                 <q-btn
                   outline
                   no-caps
-                  color="dark"
-                  class="source-tile full-width bg-grey-1"
+                  color="accent"
+                  class="source-tile full-width faro-muted-surface"
                   @click="openGallery"
                 >
                   <q-icon name="photo_library" size="34px" />
                   <strong>Choose photo</strong>
-                  <span class="text-blue-grey-6">Open the file picker.</span>
+                  <span class="faro-muted">Open the file picker.</span>
                 </q-btn>
               </div>
 
@@ -55,13 +55,13 @@
                 <q-btn
                   outline
                   no-caps
-                  color="dark"
-                  class="source-tile full-width bg-grey-1"
+                  color="accent"
+                  class="source-tile full-width faro-muted-surface"
                   @click="openCamera"
                 >
                   <q-icon name="photo_camera" size="34px" />
                   <strong>Use camera</strong>
-                  <span class="text-blue-grey-6">Best on phones.</span>
+                  <span class="faro-muted">Best on phones.</span>
                 </q-btn>
               </div>
             </div>
@@ -85,7 +85,7 @@
             <q-stepper-navigation class="stepper-nav row justify-end q-gutter-sm q-pb-none">
               <q-btn
                 unelevated
-                color="dark"
+                color="primary"
                 no-caps
                 label="Continue"
                 :disable="!imagePreview || processing"
@@ -103,7 +103,7 @@
             <div class="column q-gutter-md">
               <div
                 v-if="imagePreview"
-                class="frame-preview overflow-hidden bg-grey-1 q-mx-auto"
+                class="frame-preview overflow-hidden faro-muted-surface q-mx-auto"
                 :style="previewFrameStyle"
               >
                 <img :src="imagePreview" alt="Selected preview" class="block fit" />
@@ -112,20 +112,18 @@
                 v-else
                 flat
                 bordered
-                class="empty-frame column flex-center text-center q-gutter-sm q-pa-xl bg-grey-1"
+                class="empty-frame column flex-center text-center q-gutter-sm q-pa-xl faro-muted-surface"
               >
                 <q-icon name="image" size="34px" />
-                <span class="text-blue-grey-6">Select an image first.</span>
+                <span class="faro-muted">Select an image first.</span>
               </q-card>
 
               <q-btn-toggle
                 v-model="selectedRatio"
                 unelevated
-                rounded
                 no-caps
-                toggle-color="dark"
-                color="grey-2"
-                text-color="dark"
+                toggle-color="primary"
+                class="faro-text"
                 :options="ratioOptions"
                 :disable="processing || publishing"
                 @update:model-value="reprocessSelectedImage"
@@ -136,7 +134,7 @@
               <q-btn flat no-caps label="Back" @click="step = 1" />
               <q-btn
                 unelevated
-                color="dark"
+                color="primary"
                 no-caps
                 label="Continue"
                 :disable="!imagePreview || processing"
@@ -147,6 +145,8 @@
 
           <q-step :name="3" title="Caption" icon="notes" :done="step > 3">
             <q-input
+              class="faro-input"
+              color="accent"
               v-model="caption"
               type="textarea"
               autogrow
@@ -160,14 +160,13 @@
 
             <q-stepper-navigation class="stepper-nav row justify-end q-gutter-sm q-pb-none">
               <q-btn flat no-caps label="Back" @click="step = 2" />
-              <q-btn unelevated color="dark" no-caps label="Review" @click="step = 4" />
+              <q-btn unelevated color="primary" no-caps label="Review" @click="step = 4" />
             </q-stepper-navigation>
           </q-step>
 
           <q-step :name="4" title="Post" icon="send">
             <q-banner
               v-if="identity && !hasActiveNostrSigner && !identity.clientSecretKeyHex"
-              rounded
               dense
               class="faro-warning q-mb-md"
             >
@@ -180,7 +179,7 @@
                 ><q-btn
                   unelevated
                   no-caps
-                  color="dark"
+                  color="primary"
                   label="Sign in"
                   @click="loginDialogOpen = true"
               /></template>
@@ -189,12 +188,12 @@
               <q-btn
                 flat
                 no-caps
-                color="dark"
+                color="accent"
                 label="Reconnect signer"
                 @click="loginDialogOpen = true"
               />
             </q-banner>
-            <p class="text-caption text-blue-grey-6">
+            <p class="text-caption faro-muted">
               Publishing shares this photo publicly with Nostr and your media server. Save locally
               keeps a draft in this browser only.
             </p>
@@ -203,22 +202,20 @@
               <q-card-section class="review-grid q-pa-none">
                 <div
                   v-if="imagePreview"
-                  class="review-preview bg-grey-1"
+                  class="review-preview faro-muted-surface"
                   :style="previewFrameStyle"
                 >
                   <img :src="imagePreview" alt="Post preview" class="block fit" />
                 </div>
                 <div class="review-caption column q-pa-md">
-                  <div class="text-caption text-blue-grey-6 text-weight-bold text-uppercase">
+                  <div class="text-caption faro-muted text-weight-bold text-uppercase">
                     Review caption
                   </div>
                   <div class="text-weight-bold q-mt-xs">{{ displayName }}</div>
                   <p v-if="caption.trim()" class="caption-preview q-mt-md q-mb-none">
                     {{ caption.trim() }}
                   </p>
-                  <p v-else class="caption-preview q-mt-md q-mb-none text-blue-grey-6">
-                    No caption.
-                  </p>
+                  <p v-else class="caption-preview q-mt-md q-mb-none faro-muted">No caption.</p>
                 </div>
               </q-card-section>
             </q-card>
@@ -227,7 +224,7 @@
               <q-btn flat no-caps label="Back" @click="step = 3" />
               <q-btn
                 flat
-                color="dark"
+                color="accent"
                 no-caps
                 icon="save"
                 label="Save locally"
@@ -237,7 +234,7 @@
               />
               <q-btn
                 unelevated
-                color="dark"
+                color="primary"
                 no-caps
                 icon="send"
                 label="Publish to Nostr"
@@ -566,7 +563,7 @@ function relayPublishMessage(results = []) {
 .source-tile,
 .empty-frame {
   min-height: 180px;
-  border-color: rgba(20, 24, 28, 0.08);
+  border-color: var(--faro-surface-border);
   border-radius: var(--faro-radius-md);
   cursor: pointer;
 }
@@ -607,7 +604,7 @@ function relayPublishMessage(results = []) {
 
 .review-card {
   width: min(100%, 820px);
-  border-color: rgba(20, 24, 28, 0.08);
+  border-color: var(--faro-surface-border);
 }
 
 .caption-preview {
@@ -648,7 +645,7 @@ function relayPublishMessage(results = []) {
     z-index: 2;
     margin: 18px -16px -22px;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-    background: rgba(255, 255, 255, 0.94);
+    background: var(--faro-surface-bg);
     backdrop-filter: blur(12px);
   }
 

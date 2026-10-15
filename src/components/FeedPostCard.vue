@@ -16,9 +16,7 @@
             class="text-weight-bold text-body2 author-link"
             >{{ post.author.name }}</router-link
           >
-          <q-item-label caption class="text-blue-grey-6 text-caption">{{
-            formattedDate
-          }}</q-item-label>
+          <q-item-label caption class="faro-muted text-caption">{{ formattedDate }}</q-item-label>
         </q-item-section>
       </q-item>
     </q-card-section>
@@ -30,7 +28,7 @@
       /></template>
     </q-banner>
     <template v-if="!contentWarning || mediaRevealed">
-      <div v-if="postImages.length > 1" class="relative-position bg-grey-1">
+      <div v-if="postImages.length > 1" class="relative-position faro-muted-surface">
         <q-carousel
           v-model="activeImage"
           swipeable
@@ -44,7 +42,7 @@
           height="auto"
           class="feed-carousel"
           control-type="flat"
-          control-color="blue-grey-10"
+          control-color="accent"
         >
           <q-carousel-slide
             v-for="(image, index) in postImages"
@@ -59,27 +57,16 @@
               class="feed-image block"
             />
           </q-carousel-slide>
-          <template #navigation-icon="{ active, btnProps, onClick, index }">
+          <template #navigation-icon="{ btnProps, onClick, index }">
             <q-btn
-              v-if="active"
               size="xs"
               :icon="btnProps.icon"
-              color="dark"
+              :class="activeImage === index ? 'faro-link' : 'faro-muted'"
               round
               flat
               dense
               :aria-label="`Show image ${index + 1}`"
-              @click="onClick"
-            />
-            <q-btn
-              v-else
-              size="xs"
-              :icon="btnProps.icon"
-              color="grey-6"
-              round
-              flat
-              dense
-              :aria-label="`Show image ${index + 1}`"
+              :aria-current="activeImage === index ? 'true' : undefined"
               @click="onClick"
             />
           </template>
@@ -92,7 +79,7 @@
         :alt="post.caption || 'Visual post image'"
         loading="lazy"
         decoding="async"
-        class="feed-image block bg-grey-1"
+        class="feed-image block faro-muted-surface"
       />
 
       <video
@@ -100,7 +87,7 @@
         controls
         playsinline
         :src="postVideos[0]"
-        class="feed-video block bg-grey-1"
+        class="feed-video block faro-muted-surface"
         preload="metadata"
       />
     </template>
@@ -127,7 +114,7 @@
           dense
           size="md"
           icon="mode_comment"
-          color="blue-grey-10"
+          class="faro-text"
           aria-label="Comment on post"
           @click="openComments"
         >
@@ -141,7 +128,7 @@
         dense
         size="md"
         icon="ios_share"
-        color="blue-grey-10"
+        class="faro-text"
         aria-label="Share post"
         :disable="!post.nostr"
         @click="sharePost"
@@ -165,7 +152,7 @@
           flat
           dense
           no-caps
-          class="q-pa-none text-blue-grey-6"
+          class="q-pa-none faro-muted"
           :label="captionExpanded ? 'Show less' : 'more'"
           @click="captionExpanded = !captionExpanded"
         />
@@ -174,7 +161,7 @@
         flat
         dense
         no-caps
-        class="q-mt-sm q-pa-none text-blue-grey-6"
+        class="q-mt-sm q-pa-none faro-muted"
         :label="commentsOpen ? 'Hide comments' : 'View comments'"
         @click="toggleComments"
       />
@@ -195,8 +182,9 @@
               </div>
             </div>
           </div>
-          <div v-else class="text-caption text-blue-grey-6 q-mb-sm">No comments yet.</div>
+          <div v-else class="text-caption faro-muted q-mb-sm">No comments yet.</div>
           <q-input
+            color="accent"
             ref="commentInput"
             v-model="commentDraft"
             dense
@@ -204,17 +192,17 @@
             placeholder="Add a comment..."
             aria-label="Add a comment"
             :disable="commentPublishing"
-            class="q-pt-sm"
+            class="faro-input q-pt-sm"
           >
             <template #prepend>
-              <q-icon name="sentiment_satisfied" size="18px" class="text-blue-grey-4" />
+              <q-icon name="sentiment_satisfied" size="18px" class="faro-muted" />
             </template>
             <template #append>
               <q-btn
                 flat
                 dense
                 no-caps
-                color="primary"
+                color="accent"
                 label="Post"
                 :loading="commentPublishing"
                 :disable="
@@ -272,7 +260,7 @@ const likeCount = computed(() => props.interaction?.count || 0)
 const zapCount = computed(() => props.interaction?.zapCount || 0)
 const zapSats = computed(() => props.interaction?.sats || 0)
 const likedIcon = computed(() => (props.interaction?.likedByMe ? 'favorite' : 'favorite_border'))
-const likedColor = computed(() => (props.interaction?.likedByMe ? 'red-5' : undefined))
+const likedColor = computed(() => (props.interaction?.likedByMe ? 'accent' : undefined))
 const likeTooltip = computed(() => (props.interaction?.likedByMe ? 'Liked by you' : 'Like'))
 const engagementLabel = computed(() => {
   const likes = likeCount.value
@@ -342,7 +330,7 @@ defineEmits(['like-post'])
 
 <style scoped>
 .author-link {
-  color: inherit;
+  color: var(--faro-link);
   text-decoration: none;
   overflow-wrap: anywhere;
 }
@@ -384,14 +372,15 @@ defineEmits(['like-post'])
 }
 
 .feed-carousel :deep(.q-carousel__arrow .q-btn) {
-  background: rgba(255, 255, 255, 0.86);
-  color: #263238;
+  background: var(--faro-surface-bg);
+  color: var(--faro-ink);
 }
 
 .feed-carousel :deep(.q-carousel__navigation-inner) {
+  flex: 0 1 auto;
   width: fit-content;
   margin: 0 auto;
-  border-radius: 999px;
-  background: rgba(255, 253, 250, 0.92);
+  border-radius: var(--faro-radius-sm);
+  background: var(--faro-surface-bg);
 }
 </style>

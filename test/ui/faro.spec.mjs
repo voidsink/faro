@@ -24,7 +24,11 @@ async function setup(
     rejectReplies,
     events: [
       signed(ownerKey, 0, JSON.stringify({ display_name: 'Faro Tester', custom_field: 'keep me' })),
-      signed(artistKey, 0, JSON.stringify({ display_name: 'Mira', about: 'Photography' })),
+      signed(
+        artistKey,
+        0,
+        JSON.stringify({ display_name: 'Mira', about: 'Photography', banner: `${image}?banner=1` }),
+      ),
       signed(friendKey, 0, JSON.stringify({ display_name: 'Alex' })),
       signed(ownerKey, 3, '{"wss://legacy.example":{"read":true}}', [
         ['p', friend, 'wss://legacy.example', 'Alex'],
@@ -45,8 +49,8 @@ async function setup(
   await page.route('https://**/*', async (route) => {
     if (route.request().url().startsWith('https://media.example/')) {
       await route.fulfill({
-        contentType: 'image/png',
-        body: await readFile(new URL('../../public/icons/favicon-96x96.png', import.meta.url)),
+        contentType: 'image/jpeg',
+        body: await readFile(new URL('./fixtures/landscape.jpg', import.meta.url)),
       })
     } else if (route.request().url() === 'https://blossom.example/upload') {
       await route.fulfill({ json: { url: image } })
@@ -150,6 +154,15 @@ test('photo grids open shareable posts, and failed comments keep their text', as
   await page.getByRole('button', { name: 'Coastal light #photography' }).click()
   await expect(page).toHaveURL(/#\/post\/[0-9a-f]{64}$/)
   await expect(page.getByRole('button', { name: 'Show image 2' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Show image 1' })).toHaveAttribute(
+    'aria-current',
+    'true',
+  )
+  await page.getByRole('button', { name: 'Show image 2' }).click()
+  await expect(page.getByRole('button', { name: 'Show image 2' })).toHaveAttribute(
+    'aria-current',
+    'true',
+  )
   await page.getByRole('button', { name: 'Comment on post' }).click()
   await page
     .getByRole('textbox', { name: 'Add a comment' })
@@ -169,6 +182,10 @@ test('following and profile edits publish real events and preserve unrelated met
   await page.goto(`/#/profile/${artist}`)
   await expect(page.getByRole('heading', { name: 'Mira', exact: true })).toBeVisible()
   await expect(page.getByText('No posted photos found yet.')).not.toBeVisible()
+  await expect(page.getByRole('button', { name: 'Follow on Nostr' })).toHaveCSS(
+    'color',
+    'rgb(255, 255, 255)',
+  )
   await page.getByRole('button', { name: 'Follow on Nostr' }).click()
   await expect(page.getByRole('button', { name: 'Unfollow', exact: true })).toBeVisible()
   const contact = state.published.find((event) => event.kind === 3)
@@ -287,3 +304,127 @@ test('refreshing without new posts still allows loading older photos', async ({ 
   await expect(page.getByTestId('feed-post')).toHaveCount(5)
   await expect(page.getByText('Older photo')).toBeVisible()
 })
+
+test('theme preference persists and System follows device changes', async ({ page }) => {
+  await setup(page)
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/#/settings')
+  const selectTheme = async (name) => {
+    await page.getByRole('combobox', { name: 'Theme', exact: true }).click()
+    await page.getByRole('option', { name, exact: true }).click()
+  }
+  await expect(page.locator('body')).toHaveClass(/body--light/)
+  await selectTheme('Dark')
+  await expect(page.locator('body')).toHaveClass(/body--dark/)
+  await page.reload()
+  await expect(page.locator('body')).toHaveClass(/body--dark/)
+  await expect(page.getByRole('combobox', { name: 'Theme', exact: true })).toHaveValue('Dark')
+  await selectTheme('Light')
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await expect(page.locator('body')).toHaveClass(/body--light/)
+  await selectTheme('System')
+  await expect(page.locator('body')).toHaveClass(/body--dark/)
+  await page.emulateMedia({ colorScheme: 'light' })
+  await expect(page.locator('body')).toHaveClass(/body--light/)
+  expect(await page.evaluate(() => localStorage.getItem('faro-theme'))).toBe('system')
+  await page.evaluate(() => localStorage.setItem('faro-theme', 'invalid'))
+  await page.reload()
+  await expect(page.getByRole('combobox', { name: 'Theme', exact: true })).toHaveValue('System')
+})
+
+for (const viewport of [
+  { name: 'mobile', width: 390, height: 844 },
+  { name: 'desktop', width: 1440, height: 1000 },
+]) {
+  test(`theme contrast, interaction states and matching ${viewport.name} screenshots`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height })
+    await setup(page)
+    await page.goto('/')
+    await expect(page.getByText('The global feed is unfiltered')).toBeVisible()
+    await expect(page.locator('body')).toHaveClass(new RegExp(`body--${testInfo.project.name}`))
+    const capture = async (name) => {
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+      await page.screenshot({
+        path: testInfo.outputPath(`${viewport.name}-${name}.png`),
+        animations: 'disabled',
+      })
+    }
+    await capture('onboarding')
+    await page.getByRole('button', { name: 'Show the global feed' }).click()
+    await expect(page.getByTestId('feed-post')).toHaveCount(2)
+    await expect(page.locator('img.feed-image').first()).toBeVisible()
+    await page
+      .locator('img.feed-image')
+      .first()
+      .evaluate((img) => img.decode())
+    await capture('feed')
+    const ratios = await page.evaluate(() => {
+      const color = (token) => {
+        const probe = document.createElement('span')
+        probe.style.color = `var(${token})`
+        document.body.append(probe)
+        const rgb = getComputedStyle(probe)
+          .color.match(/[\d.]+/g)
+          .slice(0, 3)
+          .map(Number)
+        probe.remove()
+        return rgb
+      }
+      const luminance = (rgb) =>
+        rgb
+          .map((v) => v / 255)
+          .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+          .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0)
+      const contrast = (a, b) => {
+        const x = luminance(a),
+          y = luminance(b)
+        return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+      }
+      return {
+        text: contrast(color('--faro-ink'), color('--faro-surface-bg')),
+        muted: contrast(color('--faro-muted'), color('--faro-surface-bg')),
+        links: contrast(color('--faro-link'), color('--faro-surface-bg')),
+        chips: contrast(color('--faro-link'), color('--faro-accent-soft')),
+        primary: contrast([255, 255, 255], color('--q-primary')),
+        focus: contrast(color('--faro-link'), color('--faro-canvas')),
+        controls: contrast(color('--faro-control-border'), color('--faro-surface-bg')),
+      }
+    })
+    for (const role of ['text', 'muted', 'links', 'chips', 'primary'])
+      expect(ratios[role], role).toBeGreaterThanOrEqual(4.5)
+    for (const role of ['focus', 'controls']) expect(ratios[role], role).toBeGreaterThanOrEqual(3)
+    await page.getByRole('textbox', { name: 'Find a person or topic' }).focus()
+    await expect(page.locator('.feed-search')).toHaveClass(/q-field--focused/)
+    await expect(page.locator('.feed-search .q-field__control')).toHaveCSS(
+      'color',
+      testInfo.project.name === 'dark' ? 'rgb(196, 175, 255)' : 'rgb(109, 40, 217)',
+    )
+    const signIn = page.getByRole('button', { name: 'Sign in', exact: true }).first()
+    await page.keyboard.press('Shift+Tab')
+    await expect(signIn).toBeFocused()
+    await expect(signIn).toHaveCSS('outline-style', 'solid')
+    await signIn.hover()
+    await signIn.click()
+    await expect(page.getByText('Sign in to Faro', { exact: true })).toBeVisible()
+    await capture('login')
+    await page.getByRole('button', { name: 'Close login' }).click()
+    await page.goto('/#/settings')
+    await expect(page.getByRole('combobox', { name: 'Theme', exact: true })).toBeVisible()
+    await capture('settings')
+    await page.goto(`/#/profile/${artist}`)
+    await expect(page.getByRole('heading', { name: 'Mira', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Coastal light #photography' })).toBeVisible()
+    await capture('profile')
+    await page.goto('/#/new')
+    await page
+      .locator('input[type=file]')
+      .first()
+      .setInputFiles(new URL('./fixtures/landscape.jpg', import.meta.url).pathname)
+    await expect(page.getByRole('button', { name: 'Original', exact: true })).toBeVisible()
+    await capture('composer')
+  })
+}

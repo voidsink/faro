@@ -7,6 +7,8 @@
         password manager before continuing.
       </p>
       <q-input
+        class="faro-input"
+        color="accent"
         :model-value="nsec"
         :type="revealed ? 'text' : 'password'"
         outlined
@@ -23,7 +25,7 @@
           />
         </template>
       </q-input>
-      <p class="text-caption text-negative">
+      <p class="text-caption faro-danger">
         Never share this key. Anyone who has it can control your account.
       </p>
       <q-btn outline no-caps icon="content_copy" label="Copy private key" @click="copyKey" />
@@ -31,7 +33,7 @@
       <q-btn
         unelevated
         no-caps
-        color="dark"
+        color="primary"
         class="full-width q-mt-md"
         label="Continue to Faro"
         :disable="!saved"
