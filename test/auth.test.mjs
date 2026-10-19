@@ -103,7 +103,10 @@ test('createNostrConnectToken creates a QR-ready connection URI and matching cli
   assert.equal(parsed.signerPubkey, token.clientPubkey)
   assert.deepEqual(parsed.relays, ['wss://relay.example'])
   assert.equal(parsed.secret, 'test-secret')
-  assert.match(token.uri, /perms=sign_event%3A1%2Csign_event%3A7%2Csign_event%3A24242/)
+  assert.equal(
+    new URL(token.uri).searchParams.get('perms'),
+    'sign_event:1,sign_event:7,sign_event:20,sign_event:24242',
+  )
   assert.equal(token.clientSecretKey.length, 32)
 })
 

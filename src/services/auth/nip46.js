@@ -5,7 +5,12 @@ import { BunkerSigner, createNostrConnectURI, parseBunkerInput } from 'nostr-too
 import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools/pure'
 
 const HEX_64 = /^[0-9a-f]{64}$/i
-const DEFAULT_NOSTR_CONNECT_PERMS = ['sign_event:1', 'sign_event:7', 'sign_event:24242']
+const DEFAULT_NOSTR_CONNECT_PERMS = [
+  'sign_event:1',
+  'sign_event:7',
+  'sign_event:20',
+  'sign_event:24242',
+]
 
 export function secretKeyToHex(secretKey) {
   return [...secretKey].map((byte) => byte.toString(16).padStart(2, '0')).join('')

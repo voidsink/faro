@@ -1,8 +1,12 @@
 export const BLOSSOM_SERVER_STORAGE_KEY = 'faro-blossom-server'
-export const DEFAULT_BLOSSOM_SERVERS = [
+const PREVIOUS_DEFAULT_BLOSSOM_SERVERS = [
   'https://cdn.nostrverse.net',
   'https://cdn.satellite.earth',
   'https://blssm.us',
+]
+export const DEFAULT_BLOSSOM_SERVERS = [
+  'https://blossom.nostr.build',
+  ...PREVIOUS_DEFAULT_BLOSSOM_SERVERS,
 ]
 
 function nowSeconds() {
@@ -74,7 +78,13 @@ export function loadBlossomServers() {
 
     try {
       const parsed = JSON.parse(stored)
-      if (Array.isArray(parsed)) return normalizeBlossomServers(parsed)
+      if (Array.isArray(parsed)) {
+        const servers = normalizeBlossomServers(parsed)
+        // Update saved defaults while preserving custom server lists and their order.
+        return JSON.stringify(servers) === JSON.stringify(PREVIOUS_DEFAULT_BLOSSOM_SERVERS)
+          ? [...DEFAULT_BLOSSOM_SERVERS]
+          : servers
+      }
     } catch {
       // Legacy single-string value.
     }
@@ -198,7 +208,11 @@ async function uploadBlobToSingleBlossomServer(
     })
 
     if (!response.ok) {
-      return { ok: false, error: `Blossom upload failed (${response.status}).` }
+      const reason = response.headers.get('X-Reason') || (await response.text()).trim()
+      return {
+        ok: false,
+        error: `Blossom upload failed (${response.status}).${reason ? ` ${reason.slice(0, 240)}` : ''}`,
+      }
     }
 
     let body = null
